@@ -35,6 +35,19 @@ class GatewayClient {
 
     suspend fun summarize(transcript: String, course: String): String = generate("summary", JSONObject().put("transcript", transcript).put("course", course))
 
+    suspend fun generateMiniTest(markdown: String): List<MultipleChoiceQuestion> = withContext(Dispatchers.IO) {
+        val raw = generate("quiz", JSONObject().put("markdown", markdown))
+        val array = org.json.JSONArray(raw.removePrefix("```json").removeSuffix("```").trim())
+        if (array.length() != 10) throw ApiException("Сервер вернул не 10 вопросов")
+        List(10) { index ->
+            val item = array.getJSONObject(index); val optionsJson = item.getJSONArray("options")
+            val options = List(3) { option -> optionsJson.getString(option).trim() }
+            val correct = item.optInt("correctIndex", -1)
+            if (item.optString("question").trim().isEmpty() || options.any(String::isBlank) || correct !in 0..2) throw ApiException("Сервер вернул некорректный тест")
+            MultipleChoiceQuestion(item.getString("question").trim(), options, correct)
+        }
+    }
+
     private suspend fun generate(task: String, payload: JSONObject): String = withContext(Dispatchers.IO) {
         payload.put("task", task)
         val raw = execute(Request.Builder().url("$BASE/v1/generate").header("Content-Type", "application/json")

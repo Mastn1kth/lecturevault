@@ -7,7 +7,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import app.lecturevault.data.AppSettings
 import app.lecturevault.data.SessionRepository
-import app.lecturevault.data.SecretStore
+import app.lecturevault.network.GatewayClient
 import app.lecturevault.databinding.ActivityMiniTestBinding
 import app.lecturevault.network.GeminiClient
 import app.lecturevault.network.MultipleChoiceQuestion
@@ -44,9 +44,7 @@ class MiniTestActivity : AppCompatActivity() {
             val vaultUri = AppSettings(applicationContext).vaultTreeUri ?: error("Папка Obsidian не подключена")
             val settings = AppSettings(applicationContext)
             check(settings.consent) { "Для ИИ-теста включите согласие на облачную обработку в настройках" }
-            val geminiKey = SecretStore(applicationContext).getGeminiKey()
-                ?: error("Добавьте ключ Gemini в настройках")
-            GeminiClient(geminiKey, settings.geminiModel).generateMiniTest(
+            GatewayClient().generateMiniTest(
                 VaultWriter(applicationContext).readLectureNote(vaultUri, notePath),
             )
             }.onSuccess {
