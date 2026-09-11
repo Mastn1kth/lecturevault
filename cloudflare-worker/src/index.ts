@@ -28,7 +28,7 @@ async function readError(response: Response): Promise<string> { return clean(awa
 
 async function gemini(env: Env, prompt: string, input: string): Promise<string> {
   if (!env.GEMINI_API_KEY) throw new Error("Gemini не настроен");
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent", {
     method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
     body: JSON.stringify({ systemInstruction: { parts: [{ text: prompt }] }, contents: [{ role: "user", parts: [{ text: input }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: prompt === quizPrompt ? "application/json" : "text/plain" } })
   });

@@ -23,3 +23,4 @@
 - Exported lecture audio must be copied to a user-selected Storage Access Framework folder; do not expose internal session paths or move the source files, because deleting a lecture later must not delete the user's exported backup.
 - An Apple shared iPhone/macOS target must keep iPhone-only audio-session calls behind `#if os(iOS)` and use `AVCaptureDevice.requestAccess(for: .audio)` on macOS; otherwise Xcode cannot compile the Mac target.
 - On Apple platforms, keep lecture-to-audio metadata outside the Markdown vault note; archived audio belongs in Application Support and must be deleted only after the Obsidian note deletion succeeds.
+- Gemini model availability can be tied to key creation date. Verify the deployed gateway with a real request; in September 2026 Google rejected `gemini-2.5-flash` for a new key and directed migration to `gemini-3.6-flash`.
