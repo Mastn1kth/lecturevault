@@ -86,19 +86,6 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun save() {
         val folder = binding.notesFolderInput.text?.toString().orEmpty()
-        val groq = binding.groqKeyInput.text?.toString().orEmpty()
-        val gemini = binding.geminiKeyInput.text?.toString().orEmpty()
-        val hasGroq = groq.isNotBlank() || secretStore.getGroqKey() != null
-        val hasGemini = gemini.isNotBlank() || secretStore.getGeminiKey() != null
-
-        if (hasGroq != hasGemini) {
-            showMessage("Для облачного режима нужны оба ключа")
-            return
-        }
-        if (hasGroq && !binding.consentCheck.isChecked) {
-            showMessage("Подтвердите отправку аудио и текста в облачные сервисы")
-            return
-        }
         runCatching { VaultWriter(this).validateFolderPath(folder) }
             .onFailure { showMessage(it.message ?: "Некорректная папка"); return }
         if (!isVaultReady()) {
@@ -107,21 +94,7 @@ class SettingsActivity : AppCompatActivity() {
         }
 
         settings.notesFolder = folder
-        if (groq.isNotBlank() || gemini.isNotBlank()) {
-            runCatching {
-                when {
-                    groq.isNotBlank() && gemini.isNotBlank() -> secretStore.saveKeys(groq, gemini)
-                    groq.isNotBlank() -> secretStore.put(SecretStore.GROQ_API_KEY, groq)
-                    else -> secretStore.put(SecretStore.GEMINI_API_KEY, gemini)
-                }
-            }.onFailure {
-                showMessage("Не удалось безопасно сохранить ключи")
-                return
-            }
-            binding.groqKeyInput.text?.clear()
-            binding.geminiKeyInput.text?.clear()
-        }
-        settings.consent = hasGroq && hasGemini && binding.consentCheck.isChecked
+        settings.consent = binding.consentCheck.isChecked
         renderCloudStatus()
         showMessage("Настройки сохранены")
     }
@@ -150,15 +123,8 @@ class SettingsActivity : AppCompatActivity() {
     }
 
     private fun renderCloudStatus() {
-        val groqSaved = secretStore.getGroqKey() != null
-        val geminiSaved = secretStore.getGeminiKey() != null
-        binding.cloudStatus.text = when {
-            groqSaved && geminiSaved && settings.consent -> "Ключи сохранены · облачная обработка включена"
-            groqSaved && geminiSaved -> "Ключи сохранены · требуется согласие"
-            groqSaved || geminiSaved -> "Сохранён только один ключ"
-            else -> "Ключи не добавлены"
-        }
-        binding.deleteKeysButton.isEnabled = groqSaved || geminiSaved
+        binding.cloudStatus.text = if (settings.consent) "Облачный ИИ подключён · ключи защищены на сервере" else "Подтвердите отправку аудио и текста на сервер ИИ"
+        binding.deleteKeysButton.isEnabled = false
     }
 
     private fun testCloud() {

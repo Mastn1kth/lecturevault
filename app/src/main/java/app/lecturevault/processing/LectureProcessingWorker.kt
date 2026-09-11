@@ -12,7 +12,7 @@ import app.lecturevault.data.AppSettings
 import app.lecturevault.data.AtomicUtf8File
 import app.lecturevault.data.SessionRepository
 import app.lecturevault.data.SessionStatus
-import app.lecturevault.data.SecretStore
+import app.lecturevault.network.GatewayClient
 import app.lecturevault.network.GeminiClient
 import app.lecturevault.network.GroqClient
 import app.lecturevault.obsidian.VaultWriter
@@ -32,7 +32,6 @@ class LectureProcessingWorker(
 ) : CoroutineWorker(appContext, params) {
     private val repository = SessionRepository(appContext)
     private val settings = AppSettings(appContext)
-    private val secretStore = SecretStore(appContext)
     private val notificationId = NOTIFICATION_ID_BASE + (id.hashCode() and 0x0FFF)
 
     override suspend fun getForegroundInfo(): ForegroundInfo = foregroundInfo("Подготовка…", null)
@@ -123,30 +122,26 @@ class LectureProcessingWorker(
 
     private suspend fun tryCloud(sessionId: String): CloudAttempt {
         if (!settings.consent) return CloudAttempt(failureReason = "Нет согласия на облачную обработку")
-        val groqKey = secretStore.getGroqKey() ?: return CloudAttempt(failureReason = "Не сохранен ключ Groq")
-        val geminiKey = secretStore.getGeminiKey() ?: return CloudAttempt(failureReason = "Не сохранен ключ Gemini")
         return try {
             val session = checkNotNull(repository.get(sessionId))
-            val groq = GroqClient(groqKey)
+            val gateway = GatewayClient()
             val parts = session.segmentFiles.mapIndexed { index, path ->
                 ensureNotStopped()
                 val percent = 5 + ((index * 65) / session.segmentFiles.size)
                 update(sessionId, SessionStatus.TRANSCRIBING, percent)
-                setForeground(foregroundInfo("Расшифровываем через Groq: ${index + 1} из ${session.segmentFiles.size}", percent))
-                groq.transcribe(File(path))
+                setForeground(foregroundInfo("Расшифровываем: ${index + 1} из ${session.segmentFiles.size}", percent))
+                gateway.transcribe(File(path))
             }
             val text = parts.joinToString("\n\n") { it.text.trim() }.trim()
             val timestamps = parts.mapIndexed { index, item -> "### Часть ${index + 1}\n${item.timestampedText.trim()}" }.joinToString("\n\n")
             check(text.isNotBlank()) { "Groq вернул пустую расшифровку" }
-            val summary = GeminiClient(geminiKey, settings.geminiModel).summarize(
-                transcript = text, title = session.title, course = session.course, date = Formatters.dateTime(session.createdAt),
-            )
+            val summary = gateway.summarize(text, session.course)
             CloudAttempt(output = CloudOutput(CombinedTranscript(text, timestamps), summary))
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
             update(sessionId, SessionStatus.QUEUED, 1)
-            CloudAttempt(failureReason = "Ошибка Groq или Gemini: ${safeMessage(error)}")
+            CloudAttempt(failureReason = "Ошибка сервера ИИ: ${safeMessage(error)}")
         }
     }
 
