@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LectureVault</string>
+    <string name="channel_recording">Запись лекции</string>
+    <string name="channel_processing">Обработка лекции</string>
+    <string name="channel_results">Готовые конспекты</string>
+</resources>

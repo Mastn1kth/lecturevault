@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_primary">#FF7849</color><color name="brand_primary_dark">#FFAA87</color>
+    <color name="brand_secondary">#AAB0BC</color><color name="recording_red">#FF6B72</color>
+    <color name="recording_surface">#171A20</color><color name="screen_background">#0D0F12</color>
+    <color name="card_background">#171A20</color><color name="card_elevated">#20242B</color>
+    <color name="text_primary">#F3F1EC</color><color name="muted_text">#AAB0BC</color>
+    <color name="divider">#2A2F38</color><color name="success_green">#69D8A0</color>
+    <color name="accent_surface">#30221E</color><color name="ink_on_accent">#23150E</color>
+</resources>
