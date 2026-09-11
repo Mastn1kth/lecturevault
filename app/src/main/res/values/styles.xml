@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Text.LV.Title" parent="TextAppearance.Material3.HeadlineMedium">
+        <item name="android:fontFamily">@font/manrope</item><item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item><item name="android:textSize">28sp</item><item name="android:letterSpacing">-0.03</item>
+    </style>
+    <style name="Text.LV.Section" parent="TextAppearance.Material3.TitleLarge">
+        <item name="android:fontFamily">@font/manrope</item><item name="android:textColor">@color/text_primary</item>
+        <item name="android:textStyle">bold</item><item name="android:textSize">20sp</item>
+    </style>
+    <style name="Text.LV.Body" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:fontFamily">@font/manrope</item><item name="android:textColor">@color/muted_text</item>
+        <item name="android:textSize">13sp</item>
+    </style>
+    <style name="Widget.LV.Input" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxBackgroundColor">@color/card_background</item><item name="boxStrokeColor">@color/muted_text</item>
+        <item name="boxCornerRadiusTopStart">16dp</item><item name="boxCornerRadiusTopEnd">16dp</item>
+        <item name="boxCornerRadiusBottomStart">16dp</item><item name="boxCornerRadiusBottomEnd">16dp</item>
+        <item name="hintTextColor">@color/muted_text</item>
+    </style>
+    <style name="Widget.LV.Button" parent="Widget.Material3.Button.TonalButton">
+        <item name="backgroundTint">@color/card_elevated</item><item name="android:textColor">@color/text_primary</item>
+        <item name="iconTint">@color/brand_primary</item><item name="cornerRadius">16dp</item>
+        <item name="android:minHeight">52dp</item><item name="android:textSize">14sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+    <style name="Widget.LV.Primary" parent="Widget.LV.Button">
+        <item name="backgroundTint">@color/brand_primary</item><item name="android:textColor">@color/ink_on_accent</item>
+        <item name="iconTint">@color/ink_on_accent</item>
+    </style>
+    <style name="Widget.LV.Card" parent="Widget.Material3.CardView.Outlined">
+        <item name="cardBackgroundColor">@color/card_background</item><item name="cardCornerRadius">22dp</item>
+        <item name="strokeColor">@color/divider</item><item name="strokeWidth">1dp</item><item name="cardElevation">0dp</item>
+    </style>
+    <style name="Widget.LV.NavIndicator" parent="Widget.Material3.BottomNavigationView.ActiveIndicator">
+        <item name="android:color">@color/accent_surface</item>
+    </style>
+</resources>

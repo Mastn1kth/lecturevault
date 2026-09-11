@@ -1,0 +1,1 @@
+<menu xmlns:android="http://schemas.android.com/apk/res/android"><item android:id="@+id/nav_record" android:icon="@drawable/ic_mic" android:title="Запись"/><item android:id="@+id/nav_library" android:icon="@drawable/ic_library" android:title="Лекции"/><item android:id="@+id/nav_settings" android:icon="@drawable/ic_settings" android:title="Настройки"/></menu>
