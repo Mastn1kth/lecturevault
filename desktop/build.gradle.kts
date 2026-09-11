@@ -8,7 +8,7 @@ kotlin { jvmToolchain(17) }
 dependencies {
     implementation("com.formdev:flatlaf:3.7.2")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.json:json:20250517")
+    implementation("org.json:json:20260814")
     testImplementation(kotlin("test"))
 }
 
