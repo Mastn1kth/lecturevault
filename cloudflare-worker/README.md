@@ -23,4 +23,4 @@ Set non-secret routing values with `npx wrangler secret put` too:
 
 Endpoints: `GET /health`, `POST /v1/transcribe` (multipart `file`), `POST /v1/generate` (`summary` or `quiz`).
 
-Do not put provider keys in `wrangler.jsonc`, Git, APK, IPA or JAR. Before publishing to testers, add authentication and rate limiting; a public unauthenticated AI gateway can be abused even if its provider keys remain hidden.
+The Worker applies a per-IP daily limit of 5 audio uploads and 30 text requests using a Durable Object. Do not put provider keys in `wrangler.jsonc`, Git, APK, IPA or JAR.

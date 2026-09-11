@@ -6,9 +6,12 @@ export interface Env {
   TOGETHER_API_KEY?: string;
   TOGETHER_MODEL?: string;
   ALLOWED_ORIGINS?: string;
+  RATE_LIMIT: DurableObjectNamespace;
 }
 
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024;
+const DAILY_AUDIO_LIMIT = 5;
+const DAILY_TEXT_LIMIT = 30;
 const json = (value: unknown, status = 200, headers: HeadersInit = {}) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } });
 const clean = (text: string, maximum: number) => text.trim().slice(0, maximum);
 
@@ -70,14 +73,37 @@ async function transcribe(request: Request, env: Env): Promise<Response> {
   return new Response(await response.text(), { headers: { "content-type": "application/json; charset=utf-8" } });
 }
 
+export class RateLimiter implements DurableObject {
+  constructor(private readonly state: DurableObjectState) {}
+  async fetch(request: Request): Promise<Response> {
+    const { bucket, limit } = await request.json() as { bucket: string; limit: number };
+    const key = `count:${bucket}`;
+    const count = ((await this.state.storage.get<number>(key)) ?? 0) + 1;
+    await this.state.storage.put(key, count);
+    return json({ allowed: count <= limit, remaining: Math.max(0, limit - count) });
+  }
+}
+
+async function enforceRateLimit(request: Request, env: Env, kind: "audio" | "text"): Promise<boolean> {
+  const address = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const day = new Date().toISOString().slice(0, 10);
+  const stub = env.RATE_LIMIT.get(env.RATE_LIMIT.idFromName(address));
+  const response = await stub.fetch("https://limit/consume", { method: "POST", body: JSON.stringify({ bucket: `${day}:${kind}`, limit: kind === "audio" ? DAILY_AUDIO_LIMIT : DAILY_TEXT_LIMIT }) });
+  return (await response.json() as { allowed: boolean }).allowed;
+}
+
 export default { async fetch(request: Request, env: Env): Promise<Response> {
   const headers = cors(request, env);
   if (request.method === "OPTIONS") return new Response(null, { headers: { ...headers, "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type" } });
   const url = new URL(request.url);
   try {
     if (request.method === "GET" && url.pathname === "/health") return json({ ok: true, speech: Boolean(env.GROQ_API_KEY), textProviders: [Boolean(env.GEMINI_API_KEY) && "gemini", Boolean(env.OPENROUTER_API_KEY) && "openrouter", Boolean(env.TOGETHER_API_KEY) && "together"].filter(Boolean) }, 200, headers);
-    if (request.method === "POST" && url.pathname === "/v1/transcribe") { const response = await transcribe(request, env); response.headers.set("access-control-allow-origin", headers["access-control-allow-origin"]?.toString() ?? ""); return response; }
+    if (request.method === "POST" && url.pathname === "/v1/transcribe") {
+      if (!await enforceRateLimit(request, env, "audio")) return json({ error: "Дневной лимит аудио исчерпан. Попробуйте завтра." }, 429, headers);
+      const response = await transcribe(request, env); response.headers.set("access-control-allow-origin", headers["access-control-allow-origin"]?.toString() ?? ""); return response;
+    }
     if (request.method === "POST" && url.pathname === "/v1/generate") {
+      if (!await enforceRateLimit(request, env, "text")) return json({ error: "Дневной лимит ИИ исчерпан. Попробуйте завтра." }, 429, headers);
       const payload = await request.json() as { task?: "summary" | "quiz"; transcript?: string; markdown?: string; course?: string };
       if (payload.task !== "summary" && payload.task !== "quiz") return json({ error: "Неизвестная задача" }, 400, headers);
       const input = clean(payload.task === "summary" ? payload.transcript ?? "" : payload.markdown ?? "", 250_000);
