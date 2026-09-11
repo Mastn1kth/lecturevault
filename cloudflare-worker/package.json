@@ -1,0 +1,7 @@
+{
+  "name": "lecturevault-ai-gateway",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": { "dev": "wrangler dev", "deploy": "wrangler deploy", "check": "tsc --noEmit" },
+  "devDependencies": { "@cloudflare/workers-types": "^5.20260911.1", "typescript": "^5.9.2", "wrangler": "^4.38.0" }
+}

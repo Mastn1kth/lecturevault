@@ -16,3 +16,4 @@ secrets.properties
 *.aab
 *.zip
 *.tar
+node_modules/

@@ -1,0 +1,7 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lecturevault-ai-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-11",
+  "observability": { "enabled": true }
+}
