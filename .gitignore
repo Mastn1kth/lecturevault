@@ -12,6 +12,7 @@ app/build/
 *.jks
 *.keystore
 secrets.properties
+release-signing.properties
 *.apk
 *.aab
 *.zip

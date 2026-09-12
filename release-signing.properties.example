@@ -1,0 +1,6 @@
+# Never commit a real release-signing.properties or .jks file.
+# Paths are relative to the project root.
+storeFile=keys/lecturevault-upload.jks
+storePassword=replace-with-a-long-unique-password
+keyAlias=lecturevault-upload
+keyPassword=replace-with-a-long-unique-password
