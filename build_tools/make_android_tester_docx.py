@@ -160,7 +160,7 @@ def footer_with_page_number(section):
     paragraph = footer.paragraphs[0]
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     paragraph.paragraph_format.space_before = Pt(5)
-    run = paragraph.add_run("LectureVault 1.5.6   •   ")
+    run = paragraph.add_run("LectureVault 1.5.7   •   ")
     set_font(run, size=8, color=MUTED)
     fld = OxmlElement("w:fldSimple")
     fld.set(qn("w:instr"), "PAGE")

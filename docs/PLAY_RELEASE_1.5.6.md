@@ -1,8 +1,8 @@
-# Подготовка Google Play для LectureVault 1.5.6
+# Подготовка Google Play для LectureVault 1.5.7
 
 ## Подтверждено локально
 
-- Android `versionCode = 10`, `versionName = 1.5.6`, `targetSdk = 36`, `minSdk = 26`.
+- Android `versionCode = 11`, `versionName = 1.5.7`, `targetSdk = 36`, `minSdk = 26`.
 - Debug unit-тесты и release AAB успешно собираются.
 - Release AAB проходит R8 и release lint, но пока не подписан upload key.
 - В приложении нет личных ключей Groq, Gemini или OpenRouter. Оно отправляет данные только после явного согласия на защищённый сервер LectureVault.
