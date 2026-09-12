@@ -39,7 +39,8 @@ internal object LocalLectureSummarizer {
             .replace(Regex("[.!?].*"), "")
             .trim(' ', ':', '-', '—')
             .take(100)
-        return LectureTopic.fromSummary("# $cleaned")
+        val title = cleaned.replaceFirstChar { character -> character.titlecase(Locale.forLanguageTag("ru-RU")) }
+        return LectureTopic.fromSummary("# $title")
     }
 
     private fun selectImportant(sentences: List<String>): List<String> {
@@ -62,13 +63,13 @@ internal object LocalLectureSummarizer {
             .map(String::trim).filter { it.length >= MIN_SENTENCE_CHARS }.take(MAX_SENTENCES)
 
     private fun words(value: String): List<String> =
-        value.lowercase(Locale("ru", "RU")).split(Regex("[^а-яёa-z0-9]+"))
+        value.lowercase(Locale.forLanguageTag("ru-RU")).split(Regex("[^а-яёa-z0-9]+"))
             .filter(String::isNotBlank)
 
     private const val MAX_KEY_SENTENCES = 12
     private const val MAX_SENTENCES = 500
     private const val MIN_SENTENCE_CHARS = 20
-    private val topicMarker = Regex("""(?i).*?(?:тема(?:\s+лекции)?|сегодня\s+(?:мы\s+)?(?:разбер[её]м|изуч[аи]м)|поговорим\s+о)[:\s-]*""")
+    private val topicMarker = Regex("""(?iu).*?(?:тема(?:\s+лекции)?|сегодня\s+(?:мы\s+)?(?:разбер[её]м|изуч[аи]м)|поговорим\s+о)[:\s-]*""")
     private val definitionMarker = Regex("(?i)\\b(?:это|называется|определяется|определение)\\b")
     private val stopWords = setOf("который", "которая", "которые", "потому", "потом", "тогда", "также", "этого", "этот", "эта", "быть", "будет", "нужно", "можно", "просто", "сейчас", "чтобы", "когда", "здесь", "теперь", "первый", "второй")
 }
