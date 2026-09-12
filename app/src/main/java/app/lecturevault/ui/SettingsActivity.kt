@@ -8,9 +8,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
 import app.lecturevault.data.AppSettings
-import app.lecturevault.data.SecretStore
 import app.lecturevault.databinding.ActivitySettingsBinding
-import app.lecturevault.network.ConnectionTester
 import app.lecturevault.obsidian.VaultWriter
 import app.lecturevault.offline.OfflineModelManager
 import app.lecturevault.util.applyScreenInsets
@@ -22,7 +20,6 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var binding: ActivitySettingsBinding
     private val settings by lazy { AppSettings(applicationContext) }
     private val modelManager by lazy { OfflineModelManager(applicationContext) }
-    private val secretStore by lazy { SecretStore(applicationContext) }
 
     private val folderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri == null) return@registerForActivityResult
@@ -53,8 +50,6 @@ class SettingsActivity : AppCompatActivity() {
         binding.consentCheck.isChecked = settings.consent
         binding.selectVaultButton.setOnClickListener { folderPicker.launch(null) }
         binding.downloadModelButton.setOnClickListener { downloadModel() }
-        binding.testCloudButton.setOnClickListener { testCloud() }
-        binding.deleteKeysButton.setOnClickListener { deleteKeys() }
         binding.privacyButton.setOnClickListener { showPrivacyExplanation() }
         binding.saveButton.setOnClickListener { save() }
         renderModelStatus()
@@ -99,18 +94,6 @@ class SettingsActivity : AppCompatActivity() {
         showMessage("Настройки сохранены")
     }
 
-    private fun deleteKeys() {
-        runCatching { secretStore.clear() }
-            .onSuccess {
-                settings.consent = false
-                binding.consentCheck.isChecked = false
-                binding.groqKeyInput.text?.clear()
-                binding.geminiKeyInput.text?.clear()
-                renderCloudStatus()
-                showMessage("API-ключи удалены с устройства")
-            }
-            .onFailure { showMessage("Не удалось удалить ключи") }
-    }
 
     private fun renderModelStatus() {
         binding.modelStatus.text = if (modelManager.isInstalled()) {
@@ -124,30 +107,8 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun renderCloudStatus() {
         binding.cloudStatus.text = if (settings.consent) "Облачный ИИ подключён · ключи защищены на сервере" else "Подтвердите отправку аудио и текста на сервер ИИ"
-        binding.deleteKeysButton.isEnabled = false
     }
 
-    private fun testCloud() {
-        val groq = secretStore.getGroqKey()
-        val gemini = secretStore.getGeminiKey()
-        if (groq == null || gemini == null) {
-            showMessage("Сначала сохраните оба API-ключа")
-            return
-        }
-        binding.testCloudButton.isEnabled = false
-        binding.cloudStatus.text = "Проверяем доступ…"
-        lifecycleScope.launch {
-            val tester = ConnectionTester()
-            val groqResult = tester.testGroq(groq)
-            val geminiResult = tester.testGemini(gemini, settings.geminiModel)
-            binding.cloudStatus.text = buildString {
-                append(if (groqResult.success) "Groq: ключ принят" else "Groq: ${groqResult.message}")
-                appendLine()
-                append(if (geminiResult.success) "Gemini: ключ принят" else "Gemini: ${geminiResult.message}")
-            }
-            binding.testCloudButton.isEnabled = true
-        }
-    }
 
     private fun showPrivacyExplanation() {
         MaterialAlertDialogBuilder(this)

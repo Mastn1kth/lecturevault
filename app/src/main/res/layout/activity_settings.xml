@@ -70,39 +70,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="5dp"
-                        android:text="Ключи не добавлены" />
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        style="@style/Widget.LV.Input"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:hint="Groq API key"
-                        app:endIconMode="password_toggle">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/groqKeyInput"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textPassword"
-                            android:singleLine="true" />
-                    </com.google.android.material.textfield.TextInputLayout>
-
-                    <com.google.android.material.textfield.TextInputLayout
-                        style="@style/Widget.LV.Input"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:hint="Gemini API key"
-                        app:endIconMode="password_toggle">
-
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/geminiKeyInput"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:inputType="textPassword"
-                            android:singleLine="true" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                        android:text="ИИ подключён через защищённый сервер" />
 
                     <com.google.android.material.checkbox.MaterialCheckBox
                         android:id="@+id/consentCheck"
@@ -110,32 +78,10 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:buttonTint="@color/brand_primary"
-                        android:text="Разрешаю отправлять аудио в Groq и текст расшифровки в Gemini"
+                        android:text="Разрешаю отправлять аудио и текст на защищённый сервер ИИ"
                         android:textColor="@color/text_primary"
                         android:textSize="13sp" />
 
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:orientation="horizontal">
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/testCloudButton"
-                            style="@style/Widget.LV.Button"
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:text="Проверить ключи" />
-
-                        <com.google.android.material.button.MaterialButton
-                            android:id="@+id/deleteKeysButton"
-                            style="@style/Widget.LV.Button"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
-                            android:text="Удалить" />
-                    </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/privacyButton"
