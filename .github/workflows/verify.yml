@@ -44,3 +44,20 @@ jobs:
         run: npm ci
       - name: Type-check Worker
         run: npm run check
+
+  apple-sources:
+    name: iPhone and Mac source build
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ios
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Build iPhone simulator target without signing
+        run: xcodebuild -project LectureVault.xcodeproj -scheme LectureVault -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Build Mac target without signing
+        run: xcodebuild -project LectureVault.xcodeproj -scheme LectureVaultMac -sdk macosx CODE_SIGNING_ALLOWED=NO build
