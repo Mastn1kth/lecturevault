@@ -7,6 +7,7 @@ import java.awt.event.*
 import java.awt.geom.Path2D
 import java.awt.image.BufferedImage
 import java.io.File
+import java.net.URI
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -61,6 +62,7 @@ internal fun configureDesktopTheme() {
 internal enum class Page { RECORD, LIBRARY, SETTINGS }
 internal enum class RecordingState { READY, RECORDING, PROCESSING, SUCCESS, ERROR }
 internal data class LectureItem(val file: File, val title: String, val course: String, val date: String)
+private const val PRIVACY_URL = "https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev/privacy"
 
 internal class LectureVaultWindow : JFrame("LectureVault") {
     private val settings = DesktopSettings()
@@ -88,6 +90,7 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         view.onNavigate = { page -> if (page == Page.LIBRARY) refreshHistory() }
         view.onSaveSettings = ::saveSettings
         view.onDeleteKeys = ::deleteKeys
+        view.onOpenPrivacy = ::openPrivacy
         view.onChooseVault = ::chooseVault
         view.onOpenNote = ::openNote
         view.onDeleteNote = ::deleteNote
@@ -121,6 +124,13 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         view.notesField.text = settings.notesFolder
         view.consentBox.isSelected = settings.cloudConsent
         view.setConfiguration(settings.vault?.name, settings.cloudConsent)
+    }
+
+    private fun openPrivacy() {
+        runCatching {
+            check(Desktop.isDesktopSupported()) { "Браузер на этом компьютере недоступен" }
+            Desktop.getDesktop().browse(URI(PRIVACY_URL))
+        }.onFailure { view.settingsNotice(it.message ?: "Не удалось открыть политику", true) }
     }
 
     private fun ready(): Boolean {
@@ -315,6 +325,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     var onChooseVault: () -> Unit = {}
     var onSaveSettings: () -> Unit = {}
     var onDeleteKeys: () -> Unit = {}
+    var onOpenPrivacy: () -> Unit = {}
     var onOpenNote: (File) -> Unit = {}
     var onDeleteNote: (File) -> Unit = {}
     var onRetry: () -> Unit = {}
@@ -347,6 +358,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     private val openLast = ActionButton("Открыть конспект", "arrow").apply { addActionListener { onOpenLast() } }
     private val saveButton = ActionButton("Сохранить настройки", "check", true).apply { addActionListener { onSaveSettings() } }
     private val deleteKeysButton = ActionButton("Отключить облачный ИИ", "delete").apply { addActionListener { onDeleteKeys() } }
+    private val privacyButton = ActionButton("Политика данных", "arrow").apply { addActionListener { onOpenPrivacy() } }
     private val chooseVaultButton = ActionButton("Выбрать папку", "folder").apply { addActionListener { onChooseVault() } }
     private val navButtons = linkedMapOf<Page, ActionButton>()
     private var lectures = emptyList<LectureItem>()
@@ -502,6 +514,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
         }
         val ai = section("Обработка с ИИ", "Ключи находятся на защищённом сервере и не сохраняются на компьютере.")
         ai.add(consentBox)
+        ai.add(Box.createVerticalStrut(10)); ai.add(privacyButton)
         ai.add(Box.createVerticalStrut(10)); ai.add(deleteKeysButton)
         add(ai); add(Box.createVerticalStrut(18))
         val storage = section("Хранилище Obsidian", "Конспекты сохраняются в выбранную папку на компьютере.")

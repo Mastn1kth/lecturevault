@@ -118,7 +118,10 @@ class SettingsActivity : AppCompatActivity() {
                     "для расшифровки и создания конспекта. Ключи ИИ находятся только на сервере и не сохраняются " +
                     "на телефоне. Если облако недоступно и локальная модель скачана, обработка выполняется на устройстве.",
             )
-            .setPositiveButton("Понятно", null)
+            .setNegativeButton("Понятно", null)
+            .setPositiveButton("Открыть политику") { _, _ ->
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL)))
+            }
             .show()
     }
 
@@ -137,5 +140,6 @@ class SettingsActivity : AppCompatActivity() {
 
     companion object {
         private const val OBSIDIAN_CONFIG_FOLDER = ".obsidian"
+        private const val PRIVACY_URL = "https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev/privacy"
     }
 }

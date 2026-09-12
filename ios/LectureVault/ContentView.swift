@@ -347,6 +347,7 @@ private final class LectureAudioPlayer: NSObject, ObservableObject, AVAudioPlaye
 private struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @State private var consent = false
     @State private var showingPrivacy = false
     let showVaultPicker: () -> Void
@@ -384,6 +385,11 @@ private struct SettingsView: View {
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() }.foregroundStyle(LV.accent) } }
             .onAppear { consent = model.cloudConsent }
             .alert("Как используются данные", isPresented: $showingPrivacy) {
+                Button("Открыть политику") {
+                    if let url = URL(string: "https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev/privacy") {
+                        openURL(url)
+                    }
+                }
                 Button("Понятно", role: .cancel) {}
             } message: {
                 Text("Аудио и текст отправляются на защищённый сервер приложения для расшифровки и создания конспекта. Ключи ИИ не хранятся на iPhone или Mac.")
