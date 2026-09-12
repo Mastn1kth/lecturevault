@@ -27,6 +27,32 @@ final class AppModel: ObservableObject {
     private var vaultBookmark: Data? { UserDefaults.standard.data(forKey: "vaultBookmark") }
     private var audioIndex: [String: [String]] { get { UserDefaults.standard.dictionary(forKey: "lectureAudioIndex") as? [String: [String]] ?? [:] } set { UserDefaults.standard.set(newValue, forKey: "lectureAudioIndex") } }
 
+    private var bookmarkCreationOptions: URL.BookmarkCreationOptions {
+        #if os(macOS)
+        return [.withSecurityScope]
+        #else
+        return []
+        #endif
+    }
+
+    private var bookmarkResolutionOptions: URL.BookmarkResolutionOptions {
+        #if os(macOS)
+        return [.withoutUI, .withSecurityScope]
+        #else
+        return []
+        #endif
+    }
+
+    private func resolveVaultBookmark(_ bookmark: Data) throws -> URL {
+        var stale = false
+        return try URL(
+            resolvingBookmarkData: bookmark,
+            options: bookmarkResolutionOptions,
+            relativeTo: nil,
+            bookmarkDataIsStale: &stale
+        )
+    }
+
     init() {
         // Old releases kept provider credentials in Keychain. The gateway release never uses them.
         Keychain.delete(account: "groq")
@@ -36,7 +62,7 @@ final class AppModel: ObservableObject {
 
     var vaultName: String {
         guard let bookmark = vaultBookmark,
-              let url = try? URL(resolvingBookmarkData: bookmark, options: [.withoutUI, .withSecurityScope], relativeTo: nil, bookmarkDataIsStale: nil)
+              let url = try? resolveVaultBookmark(bookmark)
         else { return "Не выбран" }
         return url.lastPathComponent
     }
@@ -70,7 +96,7 @@ final class AppModel: ObservableObject {
             guard FileManager.default.fileExists(atPath: url.appendingPathComponent(".obsidian", isDirectory: true).path) else {
                 throw AppError.message("Выберите папку самого vault Obsidian")
             }
-            let bookmark = try url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil)
+            let bookmark = try url.bookmarkData(options: bookmarkCreationOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
             UserDefaults.standard.set(bookmark, forKey: "vaultBookmark")
             objectWillChange.send(); status = "Vault выбран: \(url.lastPathComponent)"; refreshHistory()
         } catch { status = "Не удалось сохранить доступ к папке" }
@@ -108,8 +134,7 @@ final class AppModel: ObservableObject {
         isBusy = true
         Task {
             do {
-                var stale = false
-                let vault = try URL(resolvingBookmarkData: bookmark, options: [.withoutUI, .withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale)
+                let vault = try resolveVaultBookmark(bookmark)
                 guard vault.startAccessingSecurityScopedResource() else { throw AppError.message("Нет доступа к vault") }
                 defer { vault.stopAccessingSecurityScopedResource() }
                 var plain: [String] = []; var timed: [String] = []
@@ -207,8 +232,7 @@ final class AppModel: ObservableObject {
 
     private func withVault<T>(_ action: (URL) throws -> T) throws -> T {
         guard let bookmark = vaultBookmark else { throw AppError.message("Выберите папку vault Obsidian") }
-        var stale = false
-        let vault = try URL(resolvingBookmarkData: bookmark, options: [.withoutUI, .withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale)
+        let vault = try resolveVaultBookmark(bookmark)
         guard vault.startAccessingSecurityScopedResource() else { throw AppError.message("Нет доступа к vault") }
         defer { vault.stopAccessingSecurityScopedResource() }
         return try action(vault)
@@ -229,13 +253,12 @@ final class AppModel: ObservableObject {
 
     private func refreshHistory(vault suppliedVault: URL? = nil) {
         do {
-            var stale = false
             let vault: URL
             if let suppliedVault {
                 vault = suppliedVault
             } else {
                 guard let bookmark = vaultBookmark else { recentNotes = []; return }
-                vault = try URL(resolvingBookmarkData: bookmark, options: [.withoutUI, .withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale)
+                vault = try resolveVaultBookmark(bookmark)
             }
             let started = suppliedVault == nil ? vault.startAccessingSecurityScopedResource() : false
             defer { if started { vault.stopAccessingSecurityScopedResource() } }
