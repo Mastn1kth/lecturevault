@@ -13,6 +13,7 @@ const MAX_AUDIO_BYTES = 24 * 1024 * 1024;
 const MAX_GENERATE_REQUEST_BYTES = 1_000_000;
 const DAILY_AUDIO_LIMIT = 5;
 const DAILY_TEXT_LIMIT = 30;
+const TEXT_PROVIDER_TIMEOUT_MS = 25_000;
 const json = (value: unknown, status = 200, headers: HeadersInit = {}) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } });
 const clean = (text: string, maximum: number) => text.trim().slice(0, maximum);
 const privacyPage = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Конфиденциальность LectureVault</title><style>body{margin:0;background:#101216;color:#edf0f5;font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif}main{max-width:760px;margin:auto;padding:48px 24px 72px}h1{font-size:32px;line-height:1.15}h2{margin-top:36px;font-size:21px}a{color:#ff7750}p,li{color:#c7cbd4}small{color:#8c93a1}</style></head><body><main><h1>Конфиденциальность LectureVault</h1><p><small>Актуально на 12 сентября 2026</small></p><p>LectureVault не создаёт пользовательские аккаунты, не показывает рекламу и не собирает аналитику, контакты, местоположение или содержимое других файлов.</p><h2>Какие данные обрабатываются</h2><ul><li>Во время записи аудио хранится во внутреннем каталоге приложения. Пользователь может сохранить отдельную копию или удалить лекцию.</li><li>Только после явного согласия аудиофрагменты и текст расшифровки отправляются на сервер LectureVault в Cloudflare Workers.</li><li>Сервер передаёт аудио в Groq для распознавания речи, а текст — в Gemini или, при недоступности Gemini, в OpenRouter для конспекта и мини-теста.</li><li>Сервер не сохраняет аудио, расшифровку или конспекты. Для дневного лимита Cloudflare хранит только счётчик запросов, привязанный к IP-адресу и дате.</li><li>Если облако недоступно и пользователь заранее скачал русскую Vosk-модель, расшифровка может выполняться на устройстве.</li><li>Markdown-конспекты сохраняются лишь в папке Obsidian, выбранной пользователем. Условия синхронизации с Obsidian, Dropbox, OneDrive и другими сервисами определяются этими сервисами.</li></ul><h2>Ключи ИИ</h2><p>Ключи Groq, Gemini и OpenRouter находятся только в настройках защищённого сервера. Они не добавляются в приложения, заметки или настройки пользователей.</p><h2>Удаление данных</h2><p>Удаление лекции в приложении удаляет её Markdown-файл из выбранного vault и локальную копию аудио. Уже синхронизированные копии в Obsidian и сторонних облачных сервисах нужно удалить там отдельно.</p><h2>Важное</h2><p>Перед записью получите необходимое согласие преподавателя и других участников, соблюдайте правила учебного заведения и применимое законодательство.</p><p>Внешние сервисы: <a href="https://console.groq.com/docs/your-data">Groq</a>, <a href="https://ai.google.dev/gemini-api/terms">Gemini API</a>, <a href="https://openrouter.ai/terms">OpenRouter</a>, <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a>, <a href="https://obsidian.md/privacy">Obsidian</a>.</p></main></body></html>`;
@@ -36,12 +37,21 @@ const quizPrompt = `По данному конспекту создай ровн
 
 async function readError(response: Response): Promise<string> { return clean(await response.text().catch(() => ""), 300); }
 
+async function textProviderFetch(url: string, init: RequestInit, label: string): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(TEXT_PROVIDER_TIMEOUT_MS) });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") throw new Error(`${label} не ответил за ${TEXT_PROVIDER_TIMEOUT_MS / 1000} секунд`);
+    throw error;
+  }
+}
+
 async function gemini(env: Env, prompt: string, input: string, jsonResponse: boolean): Promise<string> {
   if (!env.GEMINI_API_KEY) throw new Error("Gemini не настроен");
-  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent", {
+  const response = await textProviderFetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent", {
     method: "POST", headers: { "content-type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY },
     body: JSON.stringify({ systemInstruction: { parts: [{ text: prompt }] }, contents: [{ role: "user", parts: [{ text: input }] }], generationConfig: { temperature: 0.2, maxOutputTokens: 8192, responseMimeType: jsonResponse ? "application/json" : "text/plain" } })
-  });
+  }, "Gemini");
   if (!response.ok) throw new Error(`Gemini HTTP ${response.status}: ${await readError(response)}`);
   const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
   const result = payload.candidates?.[0]?.content?.parts?.map((part) => part.text ?? "").join("\n").trim();
@@ -51,7 +61,7 @@ async function gemini(env: Env, prompt: string, input: string, jsonResponse: boo
 
 async function openAiCompatible(url: string, key: string | undefined, model: string, prompt: string, input: string, label: string): Promise<string> {
   if (!key) throw new Error(`${label} не настроен`);
-  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 8192, messages: [{ role: "system", content: prompt }, { role: "user", content: input }] }) });
+  const response = await textProviderFetch(url, { method: "POST", headers: { "content-type": "application/json", authorization: `Bearer ${key}` }, body: JSON.stringify({ model, temperature: 0.2, max_tokens: 8192, messages: [{ role: "system", content: prompt }, { role: "user", content: input }] }) }, label);
   if (!response.ok) throw new Error(`${label} HTTP ${response.status}: ${await readError(response)}`);
   const payload = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   const result = payload.choices?.[0]?.message?.content?.trim();
