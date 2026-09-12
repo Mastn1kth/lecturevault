@@ -417,7 +417,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
         add(Box.createVerticalStrut(25))
     }
 
-    private fun recordPage(): JPanel = page("Сохрани главное.", SimpleDateFormat("EEEE, d MMMM", Locale.forLanguageTag("ru")).format(Date()).uppercase(Locale.forLanguageTag("ru"))).apply {
+    private fun recordPage(): JPanel = page("Новая лекция", SimpleDateFormat("EEEE, d MMMM", Locale.forLanguageTag("ru")).format(Date()).uppercase(Locale.forLanguageTag("ru"))).apply {
         add(notice)
         val hero = Surface(Ink.surface, 24).apply {
             layout = BorderLayout(26, 0)
