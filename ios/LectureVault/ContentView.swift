@@ -63,7 +63,7 @@ struct ContentView: View {
             if case let .success(urls) = $0 { model.importAudio(urls) }
         }
         .fileImporter(isPresented: $showingVaultPicker, allowedContentTypes: [.folder]) {
-            if case let .success(urls) = $0, let url = urls.first { model.selectVault(url) }
+            if case let .success(url) = $0 { model.selectVault(url) }
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView(showVaultPicker: {
@@ -286,7 +286,7 @@ private struct LectureReaderView: View {
             .background(LV.background.ignoresSafeArea())
             .foregroundStyle(LV.text)
             .navigationTitle(note.title)
-            .navigationBarTitleDisplayMode(.inline)
+            .lvInlineNavigationTitle()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() }.foregroundStyle(LV.accent) }
                 ToolbarItem(placement: .primaryAction) {
@@ -381,7 +381,7 @@ private struct SettingsView: View {
                 }.padding(20)
             }
             .background(LV.background.ignoresSafeArea()).foregroundStyle(LV.text)
-            .navigationTitle("Настройки").navigationBarTitleDisplayMode(.inline)
+            .navigationTitle("Настройки").lvInlineNavigationTitle()
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Закрыть") { dismiss() }.foregroundStyle(LV.accent) } }
             .onAppear { consent = model.cloudConsent }
             .alert("Как используются данные", isPresented: $showingPrivacy) {
@@ -408,4 +408,15 @@ private struct SettingsView: View {
         .overlay(RoundedRectangle(cornerRadius: 22).stroke(LV.line))
     }
 
+}
+
+private extension View {
+    @ViewBuilder
+    func lvInlineNavigationTitle() -> some View {
+        #if os(iOS)
+        navigationBarTitleDisplayMode(.inline)
+        #else
+        self
+        #endif
+    }
 }
