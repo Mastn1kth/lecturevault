@@ -41,6 +41,13 @@ internal class DesktopSettings {
     private val file = File(root, "settings.properties")
     private val properties = Properties().apply { if (file.isFile) file.inputStream().use(::load) }
 
+    init {
+        val hadLegacySecrets = properties.remove("groq") != null || properties.remove("gemini") != null
+        if (hadLegacySecrets) persist()
+        // The old AES key is useless without the erased envelopes and is no longer needed.
+        File(root, "credentials.key").delete()
+    }
+
     var subject: String
         get() = properties.getProperty("subject", "")
         set(value) { properties.setProperty("subject", value); persist() }
@@ -55,9 +62,6 @@ internal class DesktopSettings {
         properties.setProperty("vault", vault.absolutePath)
         properties.setProperty("notes", notes.ifBlank { "Лекции" })
         properties.setProperty("consent", "true")
-        // These were used by older desktop releases. Provider keys now stay on the gateway.
-        properties.remove("groq")
-        properties.remove("gemini")
         persist()
     }
 

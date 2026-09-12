@@ -28,6 +28,9 @@ final class AppModel: ObservableObject {
     private var audioIndex: [String: [String]] { get { UserDefaults.standard.dictionary(forKey: "lectureAudioIndex") as? [String: [String]] ?? [:] } set { UserDefaults.standard.set(newValue, forKey: "lectureAudioIndex") } }
 
     init() {
+        // Old releases kept provider credentials in Keychain. The gateway release never uses them.
+        Keychain.delete(account: "groq")
+        Keychain.delete(account: "gemini")
         refreshHistory()
     }
 
