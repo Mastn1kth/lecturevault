@@ -37,8 +37,7 @@ final class AppModel: ObservableObject {
         else { return "Не выбран" }
         return url.lastPathComponent
     }
-    var hasCloudKeys: Bool { Keychain.get(account: "groq") != nil && Keychain.get(account: "gemini") != nil }
-    var isConfigured: Bool { vaultBookmark != nil && cloudConsent && hasCloudKeys }
+    var isConfigured: Bool { vaultBookmark != nil && cloudConsent }
 
     func toggleRecording() {
         if isRecording { stopAndProcess(); return }
@@ -74,29 +73,19 @@ final class AppModel: ObservableObject {
         } catch { status = "Не удалось сохранить доступ к папке" }
     }
 
-    func saveSettings(groq: String, gemini: String, consent: Bool) {
-        let hasGroq = !groq.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || Keychain.get(account: "groq") != nil
-        let hasGemini = !gemini.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || Keychain.get(account: "gemini") != nil
-        guard hasGroq == hasGemini else { status = "Для облачного режима нужны оба ключа"; return }
-        guard !hasGroq || consent else { status = "Подтвердите отправку данных в облачные сервисы"; return }
-        do {
-            if !groq.isEmpty { try Keychain.set(groq.filter { !$0.isWhitespace }, account: "groq") }
-            if !gemini.isEmpty { try Keychain.set(gemini.filter { !$0.isWhitespace }, account: "gemini") }
-            let keysReady = Keychain.get(account: "groq") != nil && Keychain.get(account: "gemini") != nil
-            cloudConsent = consent && keysReady
-            UserDefaults.standard.set(cloudConsent, forKey: "cloudConsent")
-            UserDefaults.standard.set(notesFolder, forKey: "notesFolder")
-            objectWillChange.send(); status = "Настройки сохранены"
-        } catch { status = "Не удалось сохранить ключи в Keychain" }
+    func saveSettings(consent: Bool) {
+        guard consent else { status = "Подтвердите отправку аудио и текста на сервер ИИ"; return }
+        cloudConsent = true
+        UserDefaults.standard.set(true, forKey: "cloudConsent")
+        UserDefaults.standard.set(notesFolder, forKey: "notesFolder")
+        objectWillChange.send(); status = "Настройки сохранены"
     }
 
-    func deleteCloudKeys() {
-        Keychain.delete(account: "groq")
-        Keychain.delete(account: "gemini")
+    func disableCloudProcessing() {
         cloudConsent = false
         UserDefaults.standard.set(false, forKey: "cloudConsent")
         objectWillChange.send()
-        status = "API-ключи удалены с устройства"
+        status = "Облачная обработка отключена"
     }
 
     private func stopAndProcess() {
@@ -110,7 +99,6 @@ final class AppModel: ObservableObject {
     private func process(_ urls: [URL]) {
         guard !isBusy else { return }
         guard cloudConsent else { status = "Разрешите облачную обработку в настройках"; return }
-        guard let groq = Keychain.get(account: "groq"), let gemini = Keychain.get(account: "gemini") else { status = "Сохраните ключи Groq и Gemini"; return }
         guard let bookmark = vaultBookmark else { status = "Выберите папку vault Obsidian"; return }
         let selectedCourse = course.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !selectedCourse.isEmpty else { status = "Введите название предмета"; return }
@@ -123,13 +111,13 @@ final class AppModel: ObservableObject {
                 defer { vault.stopAccessingSecurityScopedResource() }
                 var plain: [String] = []; var timed: [String] = []
                 for (index, source) in urls.enumerated() {
-                    status = "Groq: часть \(index + 1) из \(urls.count)"
+                    status = "Расшифровка: часть \(index + 1) из \(urls.count)"
                     let access = source.startAccessingSecurityScopedResource(); defer { if access { source.stopAccessingSecurityScopedResource() } }
-                    let result = try await APIClient.transcribe(source, key: groq)
+                    let result = try await APIClient.transcribe(source)
                     plain.append(result.text); timed.append("### Часть \(index + 1)\n\(result.timestamped)")
                 }
-                status = "Gemini создаёт конспект…"
-                let summary = try await APIClient.summarize(plain.joined(separator: "\n\n"), course: selectedCourse, key: gemini)
+                status = "Создаём конспект через облачный ИИ…"
+                let summary = try await APIClient.summarize(plain.joined(separator: "\n\n"), course: selectedCourse)
                 let saved = try NoteStore.save(vault: vault, folder: notesFolder, course: selectedCourse, summary: summary, transcript: timed.joined(separator: "\n\n"))
                 let copiedAudio = try archiveAudio(urls)
                 let relative = String(saved.standardizedFileURL.path.dropFirst(vault.standardizedFileURL.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))

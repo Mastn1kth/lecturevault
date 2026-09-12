@@ -120,7 +120,7 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         view.vaultField.text = settings.vault?.absolutePath.orEmpty()
         view.notesField.text = settings.notesFolder
         view.consentBox.isSelected = settings.cloudConsent
-        view.setConfiguration(settings.vault?.name, settings.loadSecrets() != null)
+        view.setConfiguration(settings.vault?.name, settings.cloudConsent)
     }
 
     private fun ready(): Boolean {
@@ -129,9 +129,9 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
             view.subject.requestFocusInWindow()
             return false
         }
-        if (settings.loadSecrets() == null || settings.vault == null) {
+        if (!settings.cloudConsent || settings.vault == null) {
             view.navigate(Page.SETTINGS)
-            view.settingsNotice("Добавьте Groq, Gemini и папку Obsidian перед первой лекцией.", true)
+            view.settingsNotice("Подключите папку Obsidian и подтвердите облачную обработку перед первой лекцией.", true)
             return false
         }
         return true
@@ -187,7 +187,6 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
             return
         }
         if (!ready()) return
-        val secrets = settings.loadSecrets() ?: return
         val vault = settings.vault ?: return
         val course = view.subject.text.trim()
         val folder = settings.notesFolder
@@ -200,12 +199,12 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
             override fun doInBackground(): File {
                 val transcripts = files.mapIndexed { index, file ->
                     publish("Расшифровка · часть ${index + 1} из ${files.size}")
-                    CloudApi.transcribe(file, secrets.first)
+                    CloudApi.transcribe(file)
                 }
                 val plain = transcripts.joinToString("\n\n") { it.first }
                 val timed = transcripts.mapIndexed { index, item -> "### Часть ${index + 1}\n${item.second}" }.joinToString("\n\n")
                 publish("Составляем конспект")
-                val note = CloudApi.summarize(plain, course, secrets.second)
+                val note = CloudApi.summarize(plain, course)
                 publish("Сохраняем в Obsidian")
                 return NoteWriter.save(vault, folder, course, note, timed)
             }
@@ -236,35 +235,26 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
 
     private fun saveSettings() {
         if (busy || recorder != null) return
-        val groqChars = view.groqField.password
-        val geminiChars = view.geminiField.password
         runCatching {
             val folder = File(view.vaultField.text.trim()).canonicalFile
             require(view.vaultField.text.isNotBlank() && folder.isDirectory) { "Выберите существующую папку Obsidian." }
-            settings.save(folder, view.notesField.text.trim(), String(groqChars).filterNot { it.isWhitespace() || it.isISOControl() },
-                String(geminiChars).filterNot { it.isWhitespace() || it.isISOControl() }, view.consentBox.isSelected)
+            settings.save(folder, view.notesField.text.trim(), view.consentBox.isSelected)
         }.onSuccess {
-            view.groqField.text = ""
-            view.geminiField.text = ""
             loadSettingsView()
             view.settingsNotice("Настройки сохранены. Можно начинать лекцию.")
             refreshHistory()
         }.onFailure { view.settingsNotice(it.message ?: "Не удалось сохранить настройки.", true) }
-        groqChars.fill('\u0000')
-        geminiChars.fill('\u0000')
     }
 
     private fun deleteKeys() {
         if (busy || recorder != null) return
-        runCatching { settings.clearSecrets() }
+        runCatching { settings.disableCloudProcessing() }
             .onSuccess {
-                view.groqField.text = ""
-                view.geminiField.text = ""
                 view.consentBox.isSelected = false
                 loadSettingsView()
-                view.settingsNotice("API-ключи удалены с компьютера.")
+                view.settingsNotice("Облачная обработка отключена на этом компьютере.")
             }
-            .onFailure { view.settingsNotice("Не удалось удалить API-ключи.", true) }
+            .onFailure { view.settingsNotice("Не удалось отключить облачную обработку.", true) }
     }
 
     private fun refreshHistory() {
@@ -330,9 +320,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     var onRetry: () -> Unit = {}
     var onOpenLast: () -> Unit = {}
     val subject = input(initialSubject, "Предмет")
-    val groqField = password("Ключ Groq")
-    val geminiField = password("Ключ Gemini")
-    val consentBox = JCheckBox("Разрешаю отправлять аудио в Groq и текст расшифровки в Gemini").apply {
+    val consentBox = JCheckBox("Разрешаю отправлять аудио и текст на защищённый сервер ИИ").apply {
         isOpaque = false; foreground = Ink.text; font = Ink.font(12)
     }
     val vaultField = input("", "Папка хранилища Obsidian")
@@ -358,7 +346,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     private val retry = ActionButton("Повторить", "refresh").apply { addActionListener { onRetry() } }
     private val openLast = ActionButton("Открыть конспект", "arrow").apply { addActionListener { onOpenLast() } }
     private val saveButton = ActionButton("Сохранить настройки", "check", true).apply { addActionListener { onSaveSettings() } }
-    private val deleteKeysButton = ActionButton("Удалить ключи", "delete").apply { addActionListener { onDeleteKeys() } }
+    private val deleteKeysButton = ActionButton("Отключить облачный ИИ", "delete").apply { addActionListener { onDeleteKeys() } }
     private val chooseVaultButton = ActionButton("Выбрать папку", "folder").apply { addActionListener { onChooseVault() } }
     private val navButtons = linkedMapOf<Page, ActionButton>()
     private var lectures = emptyList<LectureItem>()
@@ -512,12 +500,9 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
             add(label(title, 20, true))
             add(Box.createVerticalStrut(6)); add(body(description, 12)); add(Box.createVerticalStrut(24))
         }
-        val ai = section("Обработка с ИИ", "Аудио отправляется в Groq, а расшифровка — в Gemini.")
-        ai.add(label("Groq", 13, true)); ai.add(Box.createVerticalStrut(8)); ai.add(groqField)
-        ai.add(Box.createVerticalStrut(18)); ai.add(label("Gemini", 13, true)); ai.add(Box.createVerticalStrut(8)); ai.add(geminiField)
-        ai.add(Box.createVerticalStrut(13)); ai.add(consentBox)
+        val ai = section("Обработка с ИИ", "Ключи находятся на защищённом сервере и не сохраняются на компьютере.")
+        ai.add(consentBox)
         ai.add(Box.createVerticalStrut(10)); ai.add(deleteKeysButton)
-        ai.add(Box.createVerticalStrut(8)); ai.add(body("Пустое поле сохраняет текущий ключ.", 11))
         add(ai); add(Box.createVerticalStrut(18))
         val storage = section("Хранилище Obsidian", "Конспекты сохраняются в выбранную папку на компьютере.")
         storage.add(label("Корневая папка хранилища", 13, true)); storage.add(Box.createVerticalStrut(8))
@@ -562,7 +547,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
         importButton.isEnabled = !locked
         saveButton.isEnabled = !locked
         chooseVaultButton.isEnabled = !locked
-        listOf(groqField, geminiField, vaultField, notesField).forEach { it.isEnabled = !locked }
+        listOf(consentBox, vaultField, notesField).forEach { it.isEnabled = !locked }
         recordButton.isEnabled = state != RecordingState.PROCESSING
         recordButton.recording = state == RecordingState.RECORDING
         recordButton.toolTipText = if (recordButton.recording) "Остановить и создать конспект" else "Начать запись"

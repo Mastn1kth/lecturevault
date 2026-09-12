@@ -323,10 +323,9 @@ private struct LectureReaderView: View {
     }
 
     private func generateQuiz() {
-        guard let key = Keychain.get(account: "gemini") else { quizError = "Добавьте ключ Gemini в настройках"; return }
         isGeneratingQuiz = true; quizError = nil
         Task {
-            do { quiz = try await APIClient.generateMiniTest(markdown: contents, key: key); selectedAnswers = [:]; quizResult = nil }
+            do { quiz = try await APIClient.generateMiniTest(markdown: contents); selectedAnswers = [:]; quizResult = nil }
             catch { quizError = error.localizedDescription }
             isGeneratingQuiz = false
         }
@@ -348,8 +347,6 @@ private final class LectureAudioPlayer: NSObject, ObservableObject, AVAudioPlaye
 private struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
     @Environment(\.dismiss) private var dismiss
-    @State private var groq = ""
-    @State private var gemini = ""
     @State private var consent = false
     @State private var showingPrivacy = false
     let showVaultPicker: () -> Void
@@ -358,12 +355,10 @@ private struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
-                    settingsCard("Облачный режим", subtitle: model.hasCloudKeys ? "Ключи сохранены" : "Ключи не добавлены") {
-                        secureInput("Groq API key", text: $groq)
-                        secureInput("Gemini API key", text: $gemini)
-                        Toggle("Разрешаю отправку аудио в Groq и текста в Gemini", isOn: $consent).tint(LV.accent)
+                    settingsCard("Облачный режим", subtitle: model.cloudConsent ? "Сервер ИИ подключён" : "Требуется подтверждение") {
+                        Toggle("Разрешаю отправку аудио и текста на защищённый сервер ИИ", isOn: $consent).tint(LV.accent)
                         HStack {
-                            Button("Удалить ключи") { model.deleteCloudKeys(); consent = false }.foregroundStyle(LV.danger)
+                            Button("Отключить облачный ИИ") { model.disableCloudProcessing(); consent = false }.foregroundStyle(LV.danger)
                             Spacer()
                             Button("Как используются данные") { showingPrivacy = true }.foregroundStyle(LV.muted)
                         }.font(.caption.weight(.semibold))
@@ -377,7 +372,7 @@ private struct SettingsView: View {
                         }.padding(.horizontal, 14).frame(height: 52).background(LV.elevated, in: RoundedRectangle(cornerRadius: 15))
                     }
                     Button("Сохранить") {
-                        model.saveSettings(groq: groq, gemini: gemini, consent: consent)
+                        model.saveSettings(consent: consent)
                         if model.isConfigured { dismiss() }
                     }
                     .font(.headline).frame(maxWidth: .infinity).frame(height: 54)
@@ -391,7 +386,7 @@ private struct SettingsView: View {
             .alert("Как используются данные", isPresented: $showingPrivacy) {
                 Button("Понятно", role: .cancel) {}
             } message: {
-                Text("Аудио отправляется в Groq для расшифровки, а текст — в Gemini для создания конспекта. Ключи хранятся в Keychain этого устройства.")
+                Text("Аудио и текст отправляются на защищённый сервер приложения для расшифровки и создания конспекта. Ключи ИИ не хранятся на iPhone или Mac.")
             }
         }.preferredColorScheme(.dark)
     }
@@ -407,8 +402,4 @@ private struct SettingsView: View {
         .overlay(RoundedRectangle(cornerRadius: 22).stroke(LV.line))
     }
 
-    private func secureInput(_ title: String, text: Binding<String>) -> some View {
-        SecureField(title, text: text).padding(.horizontal, 14).frame(height: 52)
-            .background(LV.elevated, in: RoundedRectangle(cornerRadius: 15))
-    }
 }
