@@ -11,7 +11,9 @@ export interface Env {
 
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024;
 const MAX_GENERATE_REQUEST_BYTES = 1_000_000;
-const DAILY_AUDIO_LIMIT = 5;
+// Android splits a long lecture into 20-minute files, so one study day needs more
+// than a handful of requests while still keeping the public gateway rate-limited.
+const DAILY_AUDIO_LIMIT = 12;
 const DAILY_TEXT_LIMIT = 30;
 const TEXT_PROVIDER_TIMEOUT_MS = 45_000;
 const json = (value: unknown, status = 200, headers: HeadersInit = {}) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } });
