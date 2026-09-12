@@ -137,8 +137,8 @@ def add_modes_table(doc):
         run = paragraph.add_run(headers[index])
         set_font(run, size=9.5, bold=True, color="FFFFFF")
     rows = (
-        ("Groq и Gemini", "Интернет, два личных API ключа и согласие на отправку данных", "Лучшее качество расшифровки и структурированного конспекта"),
-        ("Локальная модель", "Около 500 МБ памяти и однократная загрузка модели", "Работа без API и резервный режим при проблемах с облаком"),
+        ("Облачная обработка", "Интернет и согласие на отправку данных", "Расшифровка, структурированный конспект и мини-тест через защищённый сервер LectureVault"),
+        ("Локальная модель", "Около 500 МБ памяти и однократная загрузка модели", "Резервная расшифровка без сети при проблемах с облаком"),
     )
     for row_index, values in enumerate(rows):
         cells = table.add_row().cells
@@ -160,7 +160,7 @@ def footer_with_page_number(section):
     paragraph = footer.paragraphs[0]
     paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
     paragraph.paragraph_format.space_before = Pt(5)
-    run = paragraph.add_run("LectureVault 1.5.0   •   ")
+    run = paragraph.add_run("LectureVault 1.5.6   •   ")
     set_font(run, size=8, color=MUTED)
     fld = OxmlElement("w:fldSimple")
     fld.set(qn("w:instr"), "PAGE")
@@ -270,7 +270,7 @@ def build():
     props.title = "LectureVault для Android"
     props.subject = "Инструкция по установке и настройке для тестировщиков"
     props.author = "LectureVault"
-    props.keywords = "LectureVault, Android, Obsidian, Groq, Gemini"
+    props.keywords = "LectureVault, Android, Obsidian, расшифровка лекций"
     doc.save(OUTPUT)
 
 
