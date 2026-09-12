@@ -23,7 +23,6 @@ import androidx.lifecycle.lifecycleScope
 import app.lecturevault.R
 import app.lecturevault.data.AppSettings
 import app.lecturevault.data.LectureSession
-import app.lecturevault.data.SecretStore
 import app.lecturevault.data.SessionRepository
 import app.lecturevault.data.SessionStatus
 import app.lecturevault.databinding.ActivityMainBinding
@@ -47,7 +46,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private val repository by lazy { SessionRepository(applicationContext) }
     private val settings by lazy { AppSettings(applicationContext) }
-    private val secrets by lazy { SecretStore(applicationContext) }
     private val timerHandler = Handler(Looper.getMainLooper())
     private var pendingStart = false
     private var importInProgress = false
@@ -360,7 +358,8 @@ class MainActivity : AppCompatActivity() {
     private fun isSetupReady(): Boolean {
         val root = settings.vaultTreeUri?.let(Uri::parse)?.let { DocumentFile.fromTreeUri(this, it) }
         val vaultReady = settings.isConfigured() && root?.exists() == true && root.isDirectory && root.canWrite() && root.findFile(".obsidian")?.isDirectory == true
-        val cloudReady = settings.consent && secrets.getGroqKey() != null && secrets.getGeminiKey() != null
+        // Provider keys never live on the phone; consent enables the secured gateway.
+        val cloudReady = settings.consent
         val localReady = OfflineModelManager(applicationContext).isInstalled()
         return vaultReady && (cloudReady || localReady)
     }

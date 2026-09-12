@@ -28,4 +28,14 @@ class GatewayClientTest {
         val error = runCatching { runBlocking { GatewayClient(server.url("").toString().removeSuffix("/")).summarize("текст", "Курс") } }.exceptionOrNull() as ApiException
         assertEquals(429, error.statusCode); assertTrue(error.retryable)
     } }
+
+    @Test fun `quiz accepts exactly ten valid gateway questions`() { MockWebServer().use { server ->
+        val questions = (1..10).joinToString(",") { index ->
+            """{"question":"Вопрос $index","options":["А","Б","В"],"correctIndex":${index % 3}}"""
+        }
+        server.enqueue(MockResponse().setBody("""{"text":[$questions]}"""))
+        val result = runBlocking { GatewayClient(server.url("").toString().removeSuffix("/")).generateMiniTest("# Конспект") }
+        assertEquals(10, result.size); assertEquals("Вопрос 1", result.first().question)
+        assertTrue(server.takeRequest().body.readUtf8().contains("quiz"))
+    } }
 }

@@ -13,8 +13,6 @@ import app.lecturevault.data.AtomicUtf8File
 import app.lecturevault.data.SessionRepository
 import app.lecturevault.data.SessionStatus
 import app.lecturevault.network.GatewayClient
-import app.lecturevault.network.GeminiClient
-import app.lecturevault.network.GroqClient
 import app.lecturevault.obsidian.VaultWriter
 import app.lecturevault.offline.LocalLectureSummarizer
 import app.lecturevault.offline.OfflineModelManager
@@ -58,7 +56,7 @@ class LectureProcessingWorker(
                     val reason = cloudAttempt.failureReason ?: "Облачная обработка не настроена"
                     return fail(
                         sessionId,
-                        "$reason. Скачайте локальную модель или исправьте настройки API.",
+                        "$reason. Скачайте локальную модель или проверьте подключение к интернету.",
                     )
                 }
                 cloudAttempt.failureReason?.let { reason ->
@@ -69,7 +67,7 @@ class LectureProcessingWorker(
             ensureNotStopped()
 
             update(sessionId, SessionStatus.SUMMARIZING, 74)
-            setForeground(foregroundInfo(if (cloud != null) "Создаём конспект через Gemini…" else "Локально создаём конспект…", 74))
+            setForeground(foregroundInfo(if (cloud != null) "Создаём конспект через облачный ИИ…" else "Локально создаём конспект…", 74))
             val session = checkNotNull(repository.get(sessionId))
             val summary = cloud?.summary ?: LocalLectureSummarizer.summarize(transcript.text, session.course, Formatters.dateTime(session.createdAt))
             val detectedTitle = LectureTopic.fromSummary(summary)
