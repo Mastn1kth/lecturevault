@@ -10,6 +10,7 @@ export interface Env {
 }
 
 const MAX_AUDIO_BYTES = 24 * 1024 * 1024;
+const MAX_GENERATE_REQUEST_BYTES = 1_000_000;
 const DAILY_AUDIO_LIMIT = 5;
 const DAILY_TEXT_LIMIT = 30;
 const json = (value: unknown, status = 200, headers: HeadersInit = {}) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json; charset=utf-8", ...headers } });
@@ -116,6 +117,13 @@ async function enforceRateLimit(request: Request, env: Env, kind: "audio" | "tex
   return (await response.json() as { allowed: boolean }).allowed;
 }
 
+function requestExceeds(request: Request, maximumBytes: number): boolean {
+  const contentLength = request.headers.get("content-length");
+  if (contentLength === null) return false;
+  const size = Number(contentLength);
+  return !Number.isSafeInteger(size) || size < 0 || size > maximumBytes;
+}
+
 export default { async fetch(request: Request, env: Env): Promise<Response> {
   const headers = cors(request, env);
   if (request.method === "OPTIONS") return new Response(null, { headers: { ...headers, "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type" } });
@@ -123,10 +131,12 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
   try {
     if (request.method === "GET" && url.pathname === "/health") return json({ ok: true, speech: Boolean(env.GROQ_API_KEY), textProviders: [Boolean(env.GEMINI_API_KEY) && "gemini", Boolean(env.OPENROUTER_API_KEY) && "openrouter", Boolean(env.TOGETHER_API_KEY) && "together"].filter(Boolean) }, 200, headers);
     if (request.method === "POST" && url.pathname === "/v1/transcribe") {
+      if (requestExceeds(request, MAX_AUDIO_BYTES + 512 * 1024)) return json({ error: "Аудиозапись больше 24 МБ" }, 413, headers);
       if (!await enforceRateLimit(request, env, "audio")) return json({ error: "Дневной лимит аудио исчерпан. Попробуйте завтра." }, 429, headers);
       const response = await transcribe(request, env); response.headers.set("access-control-allow-origin", headers["access-control-allow-origin"]?.toString() ?? ""); return response;
     }
     if (request.method === "POST" && url.pathname === "/v1/generate") {
+      if (requestExceeds(request, MAX_GENERATE_REQUEST_BYTES)) return json({ error: "Слишком большой текст для обработки" }, 413, headers);
       if (!await enforceRateLimit(request, env, "text")) return json({ error: "Дневной лимит ИИ исчерпан. Попробуйте завтра." }, 429, headers);
       const payload = await request.json() as { task?: "summary" | "quiz"; transcript?: string; markdown?: string; course?: string };
       if (payload.task !== "summary" && payload.task !== "quiz") return json({ error: "Неизвестная задача" }, 400, headers);
