@@ -2,7 +2,6 @@ package app.lecturevault.desktop
 
 import com.formdev.flatlaf.FlatDarkLaf
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
@@ -129,9 +128,9 @@ internal object CloudApi {
 
     fun transcribe(file: File): Pair<String, String> {
         require(file.isFile && file.length() in 1..(24L * 1024 * 1024)) { "Файл пустой или больше 24 МБ: ${file.name}" }
-        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart("file", file.name, file.asRequestBody("application/octet-stream".toMediaType())).build()
-        val request = Request.Builder().url("$GATEWAY/v1/transcribe").post(body).build()
+        val body = file.asRequestBody("application/octet-stream".toMediaType())
+        val request = Request.Builder().url("$GATEWAY/v1/transcribe")
+            .header("X-Audio-Filename", file.name).post(body).build()
         client.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
             check(response.isSuccessful) { "Сервер ИИ HTTP ${response.code}: ${safeError(raw)}" }

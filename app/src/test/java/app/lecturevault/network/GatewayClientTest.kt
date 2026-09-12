@@ -9,12 +9,17 @@ import org.junit.Test
 import java.io.File
 
 class GatewayClientTest {
-    @Test fun `transcription uses gateway multipart endpoint`() { MockWebServer().use { server ->
+    @Test fun `transcription streams raw audio to gateway`() { MockWebServer().use { server ->
         server.enqueue(MockResponse().setBody("""{"text":"привет","segments":[{"start":1,"end":2,"text":"привет"}]}"""))
         val audio = File.createTempFile("lecture", ".m4a").apply { writeBytes(byteArrayOf(1, 2)) }
         val result = runBlocking { GatewayClient(server.url("").toString().removeSuffix("/")).transcribe(audio) }
         assertEquals("привет", result.text); assertTrue(result.timestampedText.contains("00:00:01"))
-        assertEquals("/v1/transcribe", server.takeRequest().path); audio.delete()
+        val request = server.takeRequest()
+        assertEquals("/v1/transcribe", request.path)
+        assertEquals("application/octet-stream", request.getHeader("Content-Type"))
+        assertEquals("lecture.m4a", request.getHeader("X-Audio-Filename"))
+        assertEquals(2L, request.body.size)
+        audio.delete()
     } }
 
     @Test fun `summary sends only gateway request`() { MockWebServer().use { server ->

@@ -3,14 +3,12 @@ package app.lecturevault.network
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.io.File
 import java.io.IOException
-import java.util.Locale
 
 /** Public application client. Provider keys stay only in the Cloudflare Worker. */
 class GatewayClient(private val baseUrl: String = BASE) {
@@ -18,9 +16,10 @@ class GatewayClient(private val baseUrl: String = BASE) {
 
     suspend fun transcribe(file: File): TranscriptResult = withContext(Dispatchers.IO) {
         require(file.isFile && file.length() in 1..MAX_AUDIO_BYTES) { "Аудиофайл пуст или больше 24 МБ" }
-        val form = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart("file", "lecture.${file.extension.lowercase(Locale.ROOT)}", file.asRequestBody("application/octet-stream".toMediaType())).build()
-        val raw = execute(Request.Builder().url("$baseUrl/v1/transcribe").post(form).build())
+        val audio = file.asRequestBody("application/octet-stream".toMediaType())
+        val raw = execute(Request.Builder().url("$baseUrl/v1/transcribe")
+            .header("X-Audio-Filename", "lecture.${file.extension.ifBlank { "m4a" }}")
+            .post(audio).build())
         val root = JSONObject(raw); val text = root.optString("text").trim()
         if (text.isEmpty()) throw ApiException("Сервер вернул пустую расшифровку")
         val lines = buildList {

@@ -10,13 +10,10 @@ enum APIClient {
     static func transcribe(_ file: URL) async throws -> Transcript {
         let data = try Data(contentsOf: file)
         guard data.count <= 24 * 1024 * 1024 else { throw AppError.message("Часть аудио больше 24 МБ") }
-        let boundary = "Boundary-\(UUID().uuidString)"
-        var body = Data()
-        body.append("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"lecture.\(file.pathExtension)\"\r\nContent-Type: application/octet-stream\r\n\r\n".data(using: .utf8)!)
-        body.append(data); body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
         var request = URLRequest(url: URL(string: "\(gateway)/v1/transcribe")!)
-        request.httpMethod = "POST"; request.httpBody = body
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpMethod = "POST"; request.httpBody = data
+        request.setValue("application/octet-stream", forHTTPHeaderField: "Content-Type")
+        request.setValue("lecture.\(file.pathExtension.isEmpty ? "m4a" : file.pathExtension)", forHTTPHeaderField: "X-Audio-Filename")
         let (responseData, response) = try await URLSession.shared.data(for: request)
         try validate(response, data: responseData, service: "Сервер ИИ")
         let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any] ?? [:]
