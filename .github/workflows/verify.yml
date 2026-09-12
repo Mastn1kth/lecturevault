@@ -1,0 +1,46 @@
+name: Verify LectureVault
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-and-desktop:
+    name: Android and desktop checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: android-actions/setup-android@v3
+      - name: Allow Gradle wrapper execution
+        run: chmod +x gradlew
+      - name: Run Android tests and assemble APK
+        run: ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain
+      - name: Run desktop tests and package portable build
+        run: ./gradlew :desktop:test :desktop:portableZip --console=plain
+
+  worker:
+    name: Cloudflare Worker type-check
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cloudflare-worker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: cloudflare-worker/package-lock.json
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Type-check Worker
+        run: npm run check
