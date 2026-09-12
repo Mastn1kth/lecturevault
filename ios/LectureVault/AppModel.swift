@@ -280,7 +280,8 @@ enum NoteStore {
         var target = destination.appendingPathComponent("\(formatter.string(from: Date())) — \(title).md")
         var index = 2
         while manager.fileExists(atPath: target.path) { target = destination.appendingPathComponent("\(formatter.string(from: Date())) — \(title) (\(index)).md"); index += 1 }
-        let body = """---
+        let body = """
+---
 type: lecture
 lecturevault_id: "\(UUID().uuidString)"
 title: "\(title)"
