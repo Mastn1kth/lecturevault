@@ -27,16 +27,6 @@ class AppSettings internal constructor(
             preferences.edit().putString(KEY_NOTES_FOLDER, normalizeNotesFolder(value)).apply()
         }
 
-    var geminiModel: String
-        get() = preferences.getString(KEY_GEMINI_MODEL, null)
-            ?.trim()
-            ?.takeIf(String::isNotEmpty)
-            ?: DEFAULT_GEMINI_MODEL
-        set(value) {
-            val normalized = value.trim().ifEmpty { DEFAULT_GEMINI_MODEL }
-            preferences.edit().putString(KEY_GEMINI_MODEL, normalized).apply()
-        }
-
     var consent: Boolean
         get() = preferences.getBoolean(KEY_CONSENT, false)
         set(value) {
@@ -49,12 +39,9 @@ class AppSettings internal constructor(
 
     companion object {
         const val DEFAULT_NOTES_FOLDER = "Лекции"
-        const val DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
-
         private const val PREFERENCES_NAME = "lecture_vault_settings"
         private const val KEY_VAULT_TREE_URI = "vault_tree_uri"
         private const val KEY_NOTES_FOLDER = "notes_folder"
-        private const val KEY_GEMINI_MODEL = "gemini_model"
         private const val KEY_CONSENT = "api_data_consent"
 
         internal fun normalizeNotesFolder(value: String?): String {

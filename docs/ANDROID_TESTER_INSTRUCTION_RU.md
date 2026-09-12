@@ -14,7 +14,7 @@ LectureVault превращает запись пары в Markdown-конспе
 
 - Android 8 или новее;
 - приложение Obsidian;
-- APK `LectureVault-Android-1.5.5-gateway.apk`;
+- APK `LectureVault-Android-1.5.6-gateway.apk`;
 - интернет для быстрой облачной обработки;
 - около 500 МБ свободного места, только если нужна резервная локальная русская модель.
 
@@ -22,7 +22,7 @@ LectureVault превращает запись пары в Markdown-конспе
 
 ## 1. Установить APK
 
-1. Скачайте `LectureVault-Android-1.5.5-gateway.apk` на телефон.
+1. Скачайте `LectureVault-Android-1.5.6-gateway.apk` на телефон.
 2. Откройте файл в «Загрузках», Telegram или «Моих файлах».
 3. Если Android попросит разрешение, временно разрешите установку приложений из этого источника.
 4. Нажмите «Установить», затем откройте LectureVault.

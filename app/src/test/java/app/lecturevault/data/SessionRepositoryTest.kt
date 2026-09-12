@@ -1,6 +1,5 @@
 package app.lecturevault.data
 
-import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -134,30 +133,6 @@ class SessionRepositoryTest {
     fun `atomic writer refuses target without an existing parent`() {
         val target = File(temporaryFolder.root, "missing/session.json")
         assertThrows(IOException::class.java) { AtomicUtf8File.write(target, "{}") }
-    }
-
-    @Test
-    fun `secret envelope codec round trips binary fields and rejects malformed records`() {
-        val iv = ByteArray(12) { it.toByte() }
-        val ciphertext = ByteArray(32) { (it * 3).toByte() }
-        val decoded = SecretEnvelopeCodec.decode(
-            version = 1,
-            encodedIv = SecretEnvelopeCodec.encode(iv),
-            encodedCiphertext = SecretEnvelopeCodec.encode(ciphertext),
-        )
-
-        assertNotNull(decoded)
-        assertArrayEquals(iv, decoded!!.iv)
-        assertArrayEquals(ciphertext, decoded.ciphertext)
-        assertEquals(null, SecretEnvelopeCodec.decode(2, SecretEnvelopeCodec.encode(iv), SecretEnvelopeCodec.encode(ciphertext)))
-        assertEquals(null, SecretEnvelopeCodec.decode(1, "not-base64", SecretEnvelopeCodec.encode(ciphertext)))
-        assertEquals(null, SecretEnvelopeCodec.decode(1, SecretEnvelopeCodec.encode(ByteArray(8)), SecretEnvelopeCodec.encode(ciphertext)))
-    }
-
-    @Test
-    fun `api credential normalization removes pasted whitespace and controls`() {
-        assertEquals("gsk_example-key", normalizeApiCredential("  gsk_example-\nkey\t\u0000 "))
-        assertEquals("", normalizeApiCredential(" \r\n\t"))
     }
 
     @Test

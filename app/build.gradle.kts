@@ -11,8 +11,8 @@ android {
         applicationId = "app.lecturevault"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.5.5"
+        versionCode = 10
+        versionName = "1.5.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
