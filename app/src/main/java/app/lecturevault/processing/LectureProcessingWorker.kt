@@ -132,7 +132,7 @@ class LectureProcessingWorker(
             }
             val text = parts.joinToString("\n\n") { it.text.trim() }.trim()
             val timestamps = parts.mapIndexed { index, item -> "### Часть ${index + 1}\n${item.timestampedText.trim()}" }.joinToString("\n\n")
-            check(text.isNotBlank()) { "Groq вернул пустую расшифровку" }
+            check(text.isNotBlank()) { "Сервер ИИ вернул пустую расшифровку" }
             val summary = gateway.summarize(text, session.course)
             CloudAttempt(output = CloudOutput(CombinedTranscript(text, timestamps), summary))
         } catch (cancelled: CancellationException) {

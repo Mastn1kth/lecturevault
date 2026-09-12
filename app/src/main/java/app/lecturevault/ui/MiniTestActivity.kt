@@ -9,7 +9,6 @@ import app.lecturevault.data.AppSettings
 import app.lecturevault.data.SessionRepository
 import app.lecturevault.network.GatewayClient
 import app.lecturevault.databinding.ActivityMiniTestBinding
-import app.lecturevault.network.GeminiClient
 import app.lecturevault.network.MultipleChoiceQuestion
 import app.lecturevault.obsidian.VaultWriter
 import app.lecturevault.util.applyScreenInsets
