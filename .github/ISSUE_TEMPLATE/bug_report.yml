@@ -1,0 +1,60 @@
+name: Ошибка в LectureVault
+description: Сообщить об ошибке тестовой сборки
+title: "[Ошибка]: "
+labels: ["bug", "tester-feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за тестирование. Не прикладывайте аудиозаписи лекций, API-ключи, пароли или личные данные.
+  - type: input
+    id: version
+    attributes:
+      label: Версия приложения
+      description: Откройте «Настройки» и укажите версию, например 1.5.7.
+      placeholder: 1.5.7
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Телефон и версия Android
+      placeholder: Samsung Galaxy A54, Android 15
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: На каком этапе ошибка
+      options:
+        - Установка APK
+        - Выбор папки Obsidian
+        - Запись аудио
+        - Импорт готового аудио
+        - Обработка лекции
+        - Синхронизация Obsidian
+        - Чтение лекции или мини-тест
+        - Другое
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Что вы сделали
+      description: Напишите коротко и по шагам, что произошло перед ошибкой.
+      placeholder: 1. Открыл приложение…\n2. Нажал…\n3. Получил…
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Что произошло и текст ошибки
+      description: Можно приложить скриншот без личных данных.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что вы ожидали
+    validations:
+      required: true
