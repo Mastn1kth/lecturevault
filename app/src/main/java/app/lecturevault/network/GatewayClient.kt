@@ -13,14 +13,14 @@ import java.io.IOException
 import java.util.Locale
 
 /** Public application client. Provider keys stay only in the Cloudflare Worker. */
-class GatewayClient {
+class GatewayClient(private val baseUrl: String = BASE) {
     private val http = secureHttpClient(20, 600, 600, 900)
 
     suspend fun transcribe(file: File): TranscriptResult = withContext(Dispatchers.IO) {
         require(file.isFile && file.length() in 1..MAX_AUDIO_BYTES) { "Аудиофайл пуст или больше 24 МБ" }
         val form = MultipartBody.Builder().setType(MultipartBody.FORM)
             .addFormDataPart("file", "lecture.${file.extension.lowercase(Locale.ROOT)}", file.asRequestBody("application/octet-stream".toMediaType())).build()
-        val raw = execute(Request.Builder().url("$BASE/v1/transcribe").post(form).build())
+        val raw = execute(Request.Builder().url("$baseUrl/v1/transcribe").post(form).build())
         val root = JSONObject(raw); val text = root.optString("text").trim()
         if (text.isEmpty()) throw ApiException("Сервер вернул пустую расшифровку")
         val lines = buildList {
@@ -50,7 +50,7 @@ class GatewayClient {
 
     private suspend fun generate(task: String, payload: JSONObject): String = withContext(Dispatchers.IO) {
         payload.put("task", task)
-        val raw = execute(Request.Builder().url("$BASE/v1/generate").header("Content-Type", "application/json")
+        val raw = execute(Request.Builder().url("$baseUrl/v1/generate").header("Content-Type", "application/json")
             .post(payload.toString().toRequestBody("application/json".toMediaType())).build())
         JSONObject(raw).optString("text").trim().ifBlank { throw ApiException("Сервер вернул пустой конспект") }
     }
