@@ -45,6 +45,15 @@ jobs:
       - name: Type-check Worker
         run: npm run check
 
+  gateway-binary-smoke:
+    name: Public gateway binary upload smoke check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify a binary POST reaches the public Worker
+        run: |
+          status="$(printf 'LV' | curl --http1.1 --max-time 20 --silent --show-error --output /dev/null --write-out '%{http_code}' --header 'Content-Type: application/octet-stream' --data-binary @- --request POST https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev/health)"
+          test "$status" = "404"
+
   apple-sources:
     name: iPhone and Mac source build
     runs-on: macos-latest
