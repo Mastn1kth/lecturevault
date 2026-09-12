@@ -137,6 +137,34 @@ function requestExceeds(request: Request, maximumBytes: number): boolean {
   return !Number.isSafeInteger(size) || size < 0 || size > maximumBytes;
 }
 
+class RequestPayloadError extends Error {
+  constructor(message: string, readonly status: number) { super(message); }
+}
+
+async function readJsonLimited<T>(request: Request, maximumBytes: number): Promise<T> {
+  const reader = request.body?.getReader();
+  if (!reader) throw new RequestPayloadError("Нет тела запроса", 400);
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > maximumBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new RequestPayloadError("Слишком большой текст для обработки", 413);
+      }
+      chunks.push(value);
+    }
+  } finally { reader.releaseLock(); }
+  const bytes = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  try { return JSON.parse(new TextDecoder().decode(bytes)) as T; }
+  catch { throw new RequestPayloadError("Некорректный JSON", 400); }
+}
+
 export default { async fetch(request: Request, env: Env): Promise<Response> {
   const headers = cors(request, env);
   if (request.method === "OPTIONS") return new Response(null, { headers: { ...headers, "access-control-allow-methods": "GET, POST, OPTIONS", "access-control-allow-headers": "content-type" } });
@@ -152,7 +180,12 @@ export default { async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "POST" && url.pathname === "/v1/generate") {
       if (requestExceeds(request, MAX_GENERATE_REQUEST_BYTES)) return json({ error: "Слишком большой текст для обработки" }, 413, headers);
       if (!await enforceRateLimit(request, env, "text")) return json({ error: "Дневной лимит ИИ исчерпан. Попробуйте завтра." }, 429, headers);
-      const payload = await request.json() as { task?: "summary" | "quiz"; transcript?: string; markdown?: string; course?: string };
+      let payload: { task?: "summary" | "quiz"; transcript?: string; markdown?: string; course?: string };
+      try { payload = await readJsonLimited(request, MAX_GENERATE_REQUEST_BYTES); }
+      catch (error) {
+        if (error instanceof RequestPayloadError) return json({ error: error.message }, error.status, headers);
+        throw error;
+      }
       if (payload.task !== "summary" && payload.task !== "quiz") return json({ error: "Неизвестная задача" }, 400, headers);
       const input = clean(payload.task === "summary" ? payload.transcript ?? "" : payload.markdown ?? "", 250_000);
       if (!input) return json({ error: "Нет текста для обработки" }, 400, headers);
