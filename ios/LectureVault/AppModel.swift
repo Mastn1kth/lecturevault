@@ -150,8 +150,11 @@ final class AppModel: ObservableObject {
     func retryProcessing(_ audio: FailedLectureAudio) { process(audio.urls, preserved: audio) }
 
     func deleteFailedAudio(_ audio: FailedLectureAudio) {
-        audio.urls.forEach { try? FileManager.default.removeItem(at: $0) }
-        audio.urls.first?.deletingLastPathComponent().map { try? FileManager.default.removeItem(at: $0) }
+        let files = audio.urls
+        files.forEach { try? FileManager.default.removeItem(at: $0) }
+        if let directory = files.first?.deletingLastPathComponent() {
+            try? FileManager.default.removeItem(at: directory)
+        }
         removeFailedAudio(id: audio.id)
         status = "Исходная запись удалена"
     }

@@ -19,7 +19,6 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
-      - uses: android-actions/setup-android@v3
       - name: Allow Gradle wrapper execution
         run: chmod +x gradlew
       - name: Run Android tests and assemble APK
