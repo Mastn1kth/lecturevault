@@ -316,7 +316,9 @@ private struct LectureReaderView: View {
                             ShareLink(item: model.audioURLs(for: note).first!) { Label("Сохранить аудио", systemImage: "square.and.arrow.up") }
                         }
                     }
-                    Text(renderedContents).font(.system(size: 16)).lineSpacing(6).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading)
+                    TimestampedNoteView(markdown: visibleContents) { seconds, part in
+                        player.seek(seconds: seconds, partNumber: part, files: model.audioURLs(for: note))
+                    }
                     Divider().overlay(LV.line)
                     Button { generateQuiz() } label: { Label(isGeneratingQuiz ? "Создаём тест…" : "Создать мини‑тест · 10 вопросов", systemImage: "checklist") }
                         .disabled(isGeneratingQuiz).buttonStyle(.borderedProminent).tint(LV.accent)
@@ -365,13 +367,14 @@ private struct LectureReaderView: View {
                 get: { errorMessage != nil },
                 set: { if !$0 { errorMessage = nil } }
             )) { Button("Понятно", role: .cancel) {} } message: { Text(errorMessage ?? "Неизвестная ошибка") }
+            .alert("Не удалось создать тест", isPresented: Binding(
+                get: { quizError != nil },
+                set: { if !$0 { quizError = nil } }
+            )) { Button("Понятно", role: .cancel) {} } message: { Text(quizError ?? "Неизвестная ошибка") }
         }.preferredColorScheme(.dark)
     }
 
-    private var renderedContents: AttributedString {
-        let visible = stripFrontMatter(contents)
-        return (try? AttributedString(markdown: visible)) ?? AttributedString(visible)
-    }
+    private var visibleContents: String { stripFrontMatter(contents) }
 
     private func stripFrontMatter(_ markdown: String) -> String {
         guard markdown.hasPrefix("---"), let end = markdown.range(of: "\n---", range: markdown.index(markdown.startIndex, offsetBy: 3)..<markdown.endIndex) else { return markdown }
@@ -388,16 +391,139 @@ private struct LectureReaderView: View {
     }
 }
 
+private struct TimestampedNoteView: View {
+    let markdown: String
+    let onTimestampTap: (Int, Int?) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(TimestampedNoteLine.parse(markdown)) { line in
+                if let seconds = line.seconds {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Button {
+                            onTimestampTap(seconds, line.partNumber)
+                        } label: {
+                            Text(line.label).font(.system(.caption, design: .monospaced).weight(.bold))
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(LV.accent)
+                        .accessibilityLabel("Перейти к \(line.label) в аудио")
+                        Text(line.text).font(.system(size: 16)).lineSpacing(6).textSelection(.enabled)
+                    }
+                } else {
+                    Text((try? AttributedString(markdown: line.text)) ?? AttributedString(line.text))
+                        .font(.system(size: 16)).lineSpacing(6).textSelection(.enabled)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct TimestampedNoteLine: Identifiable {
+    let id: Int
+    let text: String
+    let label: String
+    let seconds: Int?
+    let partNumber: Int?
+
+    static func parse(_ markdown: String) -> [TimestampedNoteLine] {
+        var currentPart: Int?
+        return markdown.split(separator: "\n", omittingEmptySubsequences: false).enumerated().map { index, value in
+            let line = String(value)
+            if line.hasPrefix("### Часть "), let number = Int(line.dropFirst("### Часть ".count).trimmingCharacters(in: .whitespaces)) {
+                currentPart = number
+            }
+            guard line.first == "[", let close = line.firstIndex(of: "]") else {
+                return TimestampedNoteLine(id: index, text: line, label: "", seconds: nil, partNumber: currentPart)
+            }
+            let label = String(line[...close])
+            let clock = label.dropFirst().dropLast().split(whereSeparator: { $0 == "–" || $0 == "-" }).first.map(String.init) ?? ""
+            guard let seconds = seconds(from: clock) else {
+                return TimestampedNoteLine(id: index, text: line, label: "", seconds: nil, partNumber: currentPart)
+            }
+            let after = line.index(after: close)
+            return TimestampedNoteLine(
+                id: index,
+                text: String(line[after...]).trimmingCharacters(in: .whitespaces),
+                label: label,
+                seconds: seconds,
+                partNumber: currentPart
+            )
+        }
+    }
+
+    private static func seconds(from value: String) -> Int? {
+        let parts = value.split(separator: ":").compactMap { Int($0) }
+        guard parts.count == 2 || parts.count == 3 else { return nil }
+        let (hours, minutes, seconds) = parts.count == 3 ? (parts[0], parts[1], parts[2]) : (0, parts[0], parts[1])
+        guard minutes < 60, seconds < 60 else { return nil }
+        return hours * 3_600 + minutes * 60 + seconds
+    }
+}
+
+@MainActor
 private final class LectureAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     @Published var isPlaying = false
     private var player: AVAudioPlayer?
-    func toggle(_ files: [URL]) {
-        if let player, player.isPlaying { player.pause(); isPlaying = false; return }
-        guard let first = files.first, let next = try? AVAudioPlayer(contentsOf: first) else { return }
-        player = next; next.delegate = self; next.play(); isPlaying = true
+    private var files: [URL] = []
+    private var durations: [TimeInterval] = []
+    private var currentPart = 0
+
+    func toggle(_ sourceFiles: [URL]) {
+        configure(sourceFiles)
+        guard !files.isEmpty else { return }
+        if let player {
+            if player.isPlaying { player.pause(); isPlaying = false }
+            else { player.play(); isPlaying = true }
+        } else {
+            open(part: currentPart, at: 0, shouldPlay: true)
+        }
     }
-    func stop() { player?.stop(); isPlaying = false }
-    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) { isPlaying = false }
+
+    func seek(seconds: Int, partNumber: Int?, files sourceFiles: [URL]) {
+        configure(sourceFiles)
+        guard !files.isEmpty else { return }
+        if let partNumber, files.indices.contains(partNumber - 1) {
+            open(part: partNumber - 1, at: TimeInterval(seconds), shouldPlay: true)
+            return
+        }
+        var remaining = TimeInterval(seconds)
+        for index in files.indices {
+            let duration = durations[index]
+            if index == files.indices.last || duration <= 0 || remaining <= duration {
+                open(part: index, at: remaining, shouldPlay: true)
+                return
+            }
+            remaining -= duration
+        }
+    }
+
+    func stop() { player?.stop(); player = nil; isPlaying = false }
+
+    func audioPlayerDidFinishPlaying(_ finishedPlayer: AVAudioPlayer, successfully flag: Bool) {
+        guard finishedPlayer === player else { return }
+        if currentPart + 1 < files.count { open(part: currentPart + 1, at: 0, shouldPlay: true) }
+        else { isPlaying = false }
+    }
+
+    private func configure(_ sourceFiles: [URL]) {
+        guard sourceFiles != files else { return }
+        stop()
+        files = sourceFiles
+        durations = sourceFiles.map { (try? AVAudioPlayer(contentsOf: $0).duration) ?? 0 }
+        currentPart = 0
+    }
+
+    private func open(part: Int, at offset: TimeInterval, shouldPlay: Bool) {
+        guard files.indices.contains(part), let next = try? AVAudioPlayer(contentsOf: files[part]) else { stop(); return }
+        player?.stop()
+        currentPart = part
+        next.delegate = self
+        next.currentTime = min(max(0, offset), next.duration)
+        player = next
+        if shouldPlay { next.play(); isPlaying = true } else { isPlaying = false }
+    }
 }
 
 private struct SettingsView: View {
