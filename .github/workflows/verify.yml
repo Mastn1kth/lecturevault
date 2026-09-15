@@ -102,9 +102,10 @@ jobs:
           if gh release view "$TAG"; then
             gh release upload "$TAG" "$asset" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$TAG" "$asset" \
+            gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --title "LectureVault ${TAG#v} — тестовая сборка" \
               --notes "Автоматически собранный APK. Перед публикацией прошли Android, Windows, iPhone/macOS и проверки сервера." \
               --prerelease
+            gh release upload "$TAG" "$asset" --repo "$GITHUB_REPOSITORY"
           fi
