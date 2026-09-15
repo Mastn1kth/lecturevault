@@ -69,7 +69,25 @@ internal class DesktopSettings {
         persist()
     }
 
+    fun rememberFailedAudio(files: List<File>) {
+        properties.setProperty("failedAudio", files.joinToString(FAILED_AUDIO_SEPARATOR) { it.absolutePath })
+        persist()
+    }
+
+    fun failedAudioFiles(): List<File> = properties.getProperty("failedAudio", "")
+        .split(FAILED_AUDIO_SEPARATOR)
+        .filter(String::isNotBlank)
+        .map(::File)
+        .filter { it.isFile && it.canRead() }
+
+    fun clearFailedAudio() {
+        properties.remove("failedAudio")
+        persist()
+    }
+
     private fun persist() = file.outputStream().use { properties.store(it, "LectureVault desktop") }
+
+    private companion object { const val FAILED_AUDIO_SEPARATOR = "\u001F" }
 }
 
 internal class SegmentedRecorder(private val directory: File) {

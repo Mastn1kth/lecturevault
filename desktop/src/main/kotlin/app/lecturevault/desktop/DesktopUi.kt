@@ -101,6 +101,7 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         view.onExportOriginalAudio = ::exportOriginalAudio
         view.onOpenLast = { lastNote?.let(::openNote) }
         loadSettingsView()
+        restoreFailedAudio()
         refreshHistory()
         addWindowListener(object : WindowAdapter() {
             override fun windowClosing(event: WindowEvent) {
@@ -232,11 +233,13 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
                 runCatching { get() }.onSuccess {
                     lastNote = it
                     pendingFiles = emptyList()
+                    settings.clearFailedAudio()
                     view.setState(RecordingState.SUCCESS, "Конспект сохранён в Obsidian")
                     view.setElapsed(0)
                     refreshHistory()
                 }.onFailure {
                     val detail = (it.cause?.message ?: it.message).orEmpty().take(220)
+                    settings.rememberFailedAudio(pendingFiles)
                     view.setState(RecordingState.ERROR, "Не удалось обработать аудио. $detail", canRetry = true)
                 }
             }
@@ -284,6 +287,17 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         }.onFailure {
             view.showNotice("Не удалось сохранить аудио: ${it.message.orEmpty().take(180)}", true)
         }
+    }
+
+    private fun restoreFailedAudio() {
+        val recovered = settings.failedAudioFiles()
+        if (recovered.isEmpty()) return
+        pendingFiles = recovered
+        view.setState(
+            RecordingState.ERROR,
+            "Предыдущая лекция не обработана. Исходное аудио сохранено на компьютере.",
+            canRetry = true,
+        )
     }
 
     private fun safeAudioName(value: String): String =
