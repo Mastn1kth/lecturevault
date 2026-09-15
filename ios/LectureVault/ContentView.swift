@@ -33,6 +33,13 @@ struct ContentView: View {
         return page == .record ? Array(filtered.prefix(4)) : filtered
     }
 
+    private var shownFailedAudios: [FailedLectureAudio] {
+        let filtered = model.failedAudios.filter {
+            search.isEmpty || $0.course.localizedCaseInsensitiveContains(search)
+        }
+        return page == .record ? Array(filtered.prefix(2)) : filtered
+    }
+
     var body: some View {
         ZStack(alignment: .bottom) {
             LV.background.ignoresSafeArea()
@@ -186,7 +193,7 @@ struct ContentView: View {
                 HStack { Text(title).font(.title2.bold()); Spacer(); Text("\(model.recentNotes.count)").foregroundStyle(LV.muted) }
                     .padding(.top, 10)
             }
-            if shownNotes.isEmpty {
+            if shownNotes.isEmpty && shownFailedAudios.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "books.vertical.fill").font(.title).foregroundStyle(LV.muted)
                     Text(search.isEmpty ? "Здесь появятся лекции" : "Ничего не найдено").font(.headline)
@@ -211,8 +218,57 @@ struct ContentView: View {
                     .contentShape(Rectangle())
                     .onTapGesture { selectedNote = note }
                 }
+                ForEach(shownFailedAudios) { audio in
+                    failedAudioCard(audio)
+                }
             }
         }.frame(maxWidth: .infinity)
+    }
+
+    private func failedAudioCard(_ audio: FailedLectureAudio) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "waveform.badge.exclamationmark").foregroundStyle(LV.danger).frame(width: 46, height: 46)
+                    .background(LV.elevated, in: RoundedRectangle(cornerRadius: 14))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Лекция не обработана").font(.headline)
+                    Text(audio.course).font(.caption.weight(.semibold)).foregroundStyle(LV.accent)
+                    Text("Исходное аудио сохранено").font(.caption).foregroundStyle(LV.success)
+                }
+                Spacer()
+                Button { model.deleteFailedAudio(audio) } label: {
+                    Image(systemName: "trash.fill").foregroundStyle(LV.danger).frame(width: 42, height: 42)
+                }.accessibilityLabel("Удалить исходную запись")
+            }
+            if !audio.errorMessage.isEmpty {
+                Text(audio.errorMessage).font(.caption).foregroundStyle(LV.muted).lineLimit(2)
+            }
+            HStack(spacing: 9) {
+                Button { model.retryProcessing(audio) } label: {
+                    Label("Повторить", systemImage: "arrow.clockwise")
+                }.buttonStyle(.bordered).tint(LV.accent)
+                exportMenu(audio)
+            }
+        }
+        .padding(15).background(LV.surface, in: RoundedRectangle(cornerRadius: 20))
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(LV.line))
+    }
+
+    @ViewBuilder private func exportMenu(_ audio: FailedLectureAudio) -> some View {
+        let files = audio.urls
+        if files.count == 1, let file = files.first {
+            ShareLink(item: file) { Label("Сохранить аудио", systemImage: "square.and.arrow.up") }
+                .buttonStyle(.borderedProminent).tint(LV.accent)
+        } else if !files.isEmpty {
+            Menu {
+                ForEach(Array(files.enumerated()), id: \.offset) { index, file in
+                    ShareLink(item: file) { Text("Сохранить часть \(index + 1)") }
+                }
+            } label: {
+                Label("Сохранить аудио", systemImage: "square.and.arrow.up")
+            }
+            .buttonStyle(.borderedProminent).tint(LV.accent)
+        }
     }
 
     private var bottomBar: some View {

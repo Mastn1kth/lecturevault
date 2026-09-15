@@ -7,10 +7,13 @@ import java.awt.event.*
 import java.awt.geom.Path2D
 import java.awt.image.BufferedImage
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.net.URI
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import javax.imageio.ImageIO
 import javax.swing.*
 import javax.swing.border.AbstractBorder
@@ -94,7 +97,8 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         view.onChooseVault = ::chooseVault
         view.onOpenNote = ::openNote
         view.onDeleteNote = ::deleteNote
-        view.onRetry = { process(pendingFiles) }
+        view.onRetry = { process(pendingFiles, archiveOriginal = false) }
+        view.onExportOriginalAudio = ::exportOriginalAudio
         view.onOpenLast = { lastNote?.let(::openNote) }
         loadSettingsView()
         refreshHistory()
@@ -190,7 +194,7 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         process(files)
     }
 
-    private fun process(files: List<File>) {
+    private fun process(files: List<File>, archiveOriginal: Boolean = true) {
         if (busy) return
         if (files.isEmpty()) {
             view.setState(RecordingState.ERROR, "В записи не оказалось аудио. Попробуйте ещё раз.")
@@ -201,14 +205,18 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         val course = view.subject.text.trim()
         val folder = settings.notesFolder
         settings.subject = course
-        pendingFiles = files
+        pendingFiles = runCatching { if (archiveOriginal) archiveOriginalAudio(files) else files }
+            .getOrElse {
+                view.setState(RecordingState.ERROR, "Не удалось сохранить исходное аудио: ${it.message.orEmpty()}")
+                return
+            }
         busy = true
         view.navigate(Page.RECORD)
         view.setState(RecordingState.PROCESSING, "Подготавливаем аудио")
         object : SwingWorker<File, String>() {
             override fun doInBackground(): File {
-                val transcripts = files.mapIndexed { index, file ->
-                    publish("Расшифровка · часть ${index + 1} из ${files.size}")
+                val transcripts = pendingFiles.mapIndexed { index, file ->
+                    publish("Расшифровка · часть ${index + 1} из ${pendingFiles.size}")
                     CloudApi.transcribe(file)
                 }
                 val plain = transcripts.joinToString("\n\n") { it.first }
@@ -233,6 +241,64 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
                 }
             }
         }.execute()
+    }
+
+    private fun archiveOriginalAudio(files: List<File>): List<File> {
+        val archive = File(settings.workingDirectory(), "original-${System.currentTimeMillis()}-${UUID.randomUUID()}")
+        check(archive.mkdirs()) { "Не удалось создать папку для исходного аудио" }
+        return try {
+            files.mapIndexed { index, source ->
+                check(source.isFile && source.canRead()) { "Исходный аудиофайл недоступен: ${source.name}" }
+                val extension = source.extension.ifBlank { "m4a" }
+                val target = File(archive, "часть-${index + 1}.$extension")
+                Files.copy(source.toPath(), target.toPath(), StandardCopyOption.COPY_ATTRIBUTES)
+                target
+            }
+        } catch (error: Exception) {
+            archive.deleteRecursively()
+            throw error
+        }
+    }
+
+    private fun exportOriginalAudio() {
+        val source = pendingFiles.filter { it.isFile && it.canRead() }
+        if (source.isEmpty()) {
+            view.showNotice("Исходные аудиофайлы не найдены. Повторите запись.", true)
+            return
+        }
+        val picker = SystemFileChooser().apply {
+            dialogTitle = "Куда сохранить исходное аудио"
+            fileSelectionMode = SystemFileChooser.DIRECTORIES_ONLY
+        }
+        if (picker.showOpenDialog(this) != SystemFileChooser.APPROVE_OPTION) return
+        val destination = picker.selectedFile
+        runCatching {
+            source.forEachIndexed { index, audio ->
+                val suffix = if (source.size == 1) "" else " — часть ${index + 1}"
+                val preferred = File(destination, "${safeAudioName(view.subject.text)}$suffix.${audio.extension.ifBlank { "m4a" }}")
+                val target = uniqueAudioFile(preferred)
+                Files.copy(audio.toPath(), target.toPath())
+            }
+        }.onSuccess {
+            view.showNotice("Исходное аудио сохранено: ${source.size} файл(а)")
+        }.onFailure {
+            view.showNotice("Не удалось сохранить аудио: ${it.message.orEmpty().take(180)}", true)
+        }
+    }
+
+    private fun safeAudioName(value: String): String =
+        value.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]+"), " ").replace(Regex("\\s+"), " ").trim().take(80).ifBlank { "Лекция" }
+
+    private fun uniqueAudioFile(preferred: File): File {
+        if (!preferred.exists()) return preferred
+        val stem = preferred.nameWithoutExtension
+        val extension = preferred.extension
+        var index = 2
+        while (true) {
+            val next = File(preferred.parentFile, "$stem ($index).$extension")
+            if (!next.exists()) return next
+            index += 1
+        }
     }
 
     private fun chooseVault() {
@@ -329,6 +395,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     var onOpenNote: (File) -> Unit = {}
     var onDeleteNote: (File) -> Unit = {}
     var onRetry: () -> Unit = {}
+    var onExportOriginalAudio: () -> Unit = {}
     var onOpenLast: () -> Unit = {}
     val subject = input(initialSubject, "Предмет")
     val consentBox = JCheckBox("Разрешаю отправлять аудио и текст на защищённый сервер ИИ").apply {
@@ -355,6 +422,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     private val search = input("", "Поиск по названию или предмету")
     private val recovery = row(10)
     private val retry = ActionButton("Повторить", "refresh").apply { addActionListener { onRetry() } }
+    private val exportOriginalAudio = ActionButton("Сохранить аудио", "upload").apply { addActionListener { onExportOriginalAudio() } }
     private val openLast = ActionButton("Открыть конспект", "arrow").apply { addActionListener { onOpenLast() } }
     private val saveButton = ActionButton("Сохранить настройки", "check", true).apply { addActionListener { onSaveSettings() } }
     private val deleteKeysButton = ActionButton("Отключить облачный ИИ", "delete").apply { addActionListener { onDeleteKeys() } }
@@ -450,7 +518,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
         control.add(Box.createVerticalGlue())
         hero.add(control, BorderLayout.EAST)
         add(hero)
-        recovery.add(retry); recovery.add(openLast)
+        recovery.add(retry); recovery.add(exportOriginalAudio); recovery.add(openLast)
         recovery.isVisible = false
         add(recovery)
         add(Box.createVerticalStrut(16))
@@ -572,6 +640,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
         detail.text = if (state == RecordingState.ERROR) "Аудио не удалено" else message
         showNotice(if (state == RecordingState.ERROR) message else "", state == RecordingState.ERROR)
         retry.isVisible = canRetry
+        exportOriginalAudio.isVisible = canRetry
         openLast.isVisible = state == RecordingState.SUCCESS
         recovery.isVisible = canRetry || state == RecordingState.SUCCESS
         revalidate(); repaint()

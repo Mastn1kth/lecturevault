@@ -10,6 +10,18 @@ struct LectureNote: Identifiable, Hashable {
     var id: String { relativePath }
 }
 
+struct FailedLectureAudio: Identifiable, Hashable, Codable {
+    let id: String
+    let course: String
+    let createdAt: Date
+    let filePaths: [String]
+    let errorMessage: String
+
+    var urls: [URL] {
+        filePaths.map(URL.init(fileURLWithPath:)).filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+}
+
 @MainActor
 final class AppModel: ObservableObject {
     @Published var course = UserDefaults.standard.string(forKey: "course") ?? ""
@@ -20,12 +32,20 @@ final class AppModel: ObservableObject {
     @Published private(set) var isRecording = false
     @Published private(set) var isBusy = false
     @Published private(set) var recentNotes: [LectureNote] = []
+    @Published private(set) var failedAudios: [FailedLectureAudio] = []
     private var recorder: AVAudioRecorder?
     private var recordedParts: [URL] = []
     private var timer: Timer?
     private var startedAt: Date?
     private var vaultBookmark: Data? { UserDefaults.standard.data(forKey: "vaultBookmark") }
     private var audioIndex: [String: [String]] { get { UserDefaults.standard.dictionary(forKey: "lectureAudioIndex") as? [String: [String]] ?? [:] } set { UserDefaults.standard.set(newValue, forKey: "lectureAudioIndex") } }
+    private var failedAudioStore: [FailedLectureAudio] {
+        get {
+            guard let data = UserDefaults.standard.data(forKey: "failedLectureAudio") else { return [] }
+            return (try? JSONDecoder().decode([FailedLectureAudio].self, from: data)) ?? []
+        }
+        set { UserDefaults.standard.set(try? JSONEncoder().encode(newValue), forKey: "failedLectureAudio") }
+    }
 
     private var bookmarkCreationOptions: URL.BookmarkCreationOptions {
         #if os(macOS)
@@ -57,6 +77,8 @@ final class AppModel: ObservableObject {
         // Old releases kept provider credentials in Keychain. The gateway release never uses them.
         Keychain.delete(account: "groq")
         Keychain.delete(account: "gemini")
+        failedAudios = failedAudioStore.filter { !$0.urls.isEmpty }
+        failedAudioStore = failedAudios
         refreshHistory()
     }
 
@@ -125,21 +147,45 @@ final class AppModel: ObservableObject {
         process(recordedParts)
     }
 
-    private func process(_ urls: [URL]) {
+    func retryProcessing(_ audio: FailedLectureAudio) { process(audio.urls, preserved: audio) }
+
+    func deleteFailedAudio(_ audio: FailedLectureAudio) {
+        audio.urls.forEach { try? FileManager.default.removeItem(at: $0) }
+        audio.urls.first?.deletingLastPathComponent().map { try? FileManager.default.removeItem(at: $0) }
+        removeFailedAudio(id: audio.id)
+        status = "Исходная запись удалена"
+    }
+
+    private func process(_ urls: [URL], preserved: FailedLectureAudio? = nil) {
         guard !isBusy else { return }
-        guard cloudConsent else { status = "Разрешите облачную обработку в настройках"; return }
-        guard let bookmark = vaultBookmark else { status = "Выберите папку vault Obsidian"; return }
         let selectedCourse = course.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !selectedCourse.isEmpty else { status = "Введите название предмета"; return }
         isBusy = true
         Task {
+            var savedAudio: FailedLectureAudio?
             do {
+                let currentAudio: FailedLectureAudio
+                if let preserved {
+                    currentAudio = preserved
+                } else {
+                    currentAudio = FailedLectureAudio(
+                        id: UUID().uuidString,
+                        course: selectedCourse,
+                        createdAt: Date(),
+                        filePaths: try archiveAudio(urls).map(\.path),
+                        errorMessage: "",
+                    )
+                }
+                savedAudio = currentAudio
+                guard !currentAudio.urls.isEmpty else { throw AppError.message("Исходные аудиофайлы не найдены") }
+                guard cloudConsent else { throw AppError.message("Облачная обработка отключена") }
+                guard let bookmark = vaultBookmark else { throw AppError.message("Папка vault Obsidian не выбрана") }
                 let vault = try resolveVaultBookmark(bookmark)
                 guard vault.startAccessingSecurityScopedResource() else { throw AppError.message("Нет доступа к vault") }
                 defer { vault.stopAccessingSecurityScopedResource() }
                 var plain: [String] = []; var timed: [String] = []
-                for (index, source) in urls.enumerated() {
-                    status = "Расшифровка: часть \(index + 1) из \(urls.count)"
+                for (index, source) in currentAudio.urls.enumerated() {
+                    status = "Расшифровка: часть \(index + 1) из \(currentAudio.urls.count)"
                     let access = source.startAccessingSecurityScopedResource(); defer { if access { source.stopAccessingSecurityScopedResource() } }
                     let result = try await APIClient.transcribe(source)
                     plain.append(result.text); timed.append("### Часть \(index + 1)\n\(result.timestamped)")
@@ -147,12 +193,25 @@ final class AppModel: ObservableObject {
                 status = "Создаём конспект через облачный ИИ…"
                 let summary = try await APIClient.summarize(plain.joined(separator: "\n\n"), course: selectedCourse)
                 let saved = try NoteStore.save(vault: vault, folder: notesFolder, course: selectedCourse, summary: summary, transcript: timed.joined(separator: "\n\n"))
-                let copiedAudio = try archiveAudio(urls)
                 let relative = String(saved.standardizedFileURL.path.dropFirst(vault.standardizedFileURL.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-                var index = audioIndex; index[relative] = copiedAudio.map(\.path); audioIndex = index
+                var index = audioIndex; index[relative] = currentAudio.filePaths; audioIndex = index
+                removeFailedAudio(id: currentAudio.id)
                 status = "Готово ✓\n\(saved.lastPathComponent)"; refreshHistory(vault: vault)
                 await notifyLectureReady(title: saved.deletingPathExtension().lastPathComponent)
-            } catch { status = "Ошибка: \(error.localizedDescription)" }
+            } catch {
+                if let savedAudio {
+                    storeFailedAudio(FailedLectureAudio(
+                        id: savedAudio.id,
+                        course: savedAudio.course,
+                        createdAt: savedAudio.createdAt,
+                        filePaths: savedAudio.filePaths,
+                        errorMessage: error.localizedDescription,
+                    ))
+                    status = "Не удалось обработать. Исходное аудио сохранено — его можно скачать в разделе «Лекции»."
+                } else {
+                    status = "Не удалось сохранить исходное аудио: \(error.localizedDescription)"
+                }
+            }
             isBusy = false
         }
     }
@@ -209,6 +268,17 @@ final class AppModel: ObservableObject {
     }
 
     func audioURLs(for note: LectureNote) -> [URL] { (audioIndex[note.relativePath] ?? []).map(URL.init(fileURLWithPath:)).filter { FileManager.default.fileExists(atPath: $0.path) } }
+
+    private func storeFailedAudio(_ audio: FailedLectureAudio) {
+        failedAudios.removeAll { $0.id == audio.id }
+        failedAudios.insert(audio, at: 0)
+        failedAudioStore = failedAudios
+    }
+
+    private func removeFailedAudio(id: String) {
+        failedAudios.removeAll { $0.id == id }
+        failedAudioStore = failedAudios
+    }
 
     private func archiveAudio(_ sources: [URL]) throws -> [URL] {
         let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("LectureVaultAudio", isDirectory: true).appendingPathComponent(UUID().uuidString, isDirectory: true)
