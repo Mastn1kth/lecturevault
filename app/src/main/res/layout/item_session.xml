@@ -109,6 +109,16 @@
                 android:visibility="gone" />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/sessionAudio"
+                style="@style/Widget.LV.Button"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="Сохранить аудио"
+                android:visibility="gone" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/sessionDelete"
                 style="@style/Widget.LV.Button"
                 android:layout_width="52dp"

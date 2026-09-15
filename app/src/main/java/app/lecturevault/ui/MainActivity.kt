@@ -33,6 +33,7 @@ import app.lecturevault.processing.ProcessingScheduler
 import app.lecturevault.recording.RecordingService
 import app.lecturevault.recording.RecordingState
 import app.lecturevault.util.AppEvents
+import app.lecturevault.util.AudioExporter
 import app.lecturevault.util.Formatters
 import app.lecturevault.util.applyScreenInsets
 import com.google.android.material.snackbar.Snackbar
@@ -51,9 +52,16 @@ class MainActivity : AppCompatActivity() {
     private var importInProgress = false
     private var libraryMode = false
     private var filter = HistoryFilter.ALL
+    private var pendingAudioExport: LectureSession? = null
 
     private val audioPicker = registerForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         if (uris.isNotEmpty()) importAudio(uris)
+    }
+
+    private val audioExportFolderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        val session = pendingAudioExport
+        pendingAudioExport = null
+        if (uri != null && session != null) exportOriginalAudio(session, uri)
     }
 
     private val eventReceiver = object : BroadcastReceiver() {
@@ -282,6 +290,7 @@ class MainActivity : AppCompatActivity() {
             item.sessionError.visibility = if (session.errorMessage.isNullOrBlank()) View.GONE else View.VISIBLE
             item.sessionError.text = session.errorMessage
             item.sessionAction.visibility = View.GONE
+            item.sessionAudio.visibility = View.GONE
             item.sessionDelete.setOnClickListener { confirmDelete(session) }
             when {
                 session.status == SessionStatus.COMPLETE && !session.noteRelativePath.isNullOrBlank() -> {
@@ -297,6 +306,11 @@ class MainActivity : AppCompatActivity() {
                         ProcessingScheduler.enqueue(this, session.id)
                         showMessage("Снова поставлено в очередь")
                         render()
+                    }
+                    item.sessionAudio.visibility = View.VISIBLE
+                    item.sessionAudio.setOnClickListener {
+                        pendingAudioExport = session
+                        audioExportFolderPicker.launch(null)
                     }
                 }
             }
@@ -318,6 +332,23 @@ class MainActivity : AppCompatActivity() {
 
     private fun openReader(sessionId: String) {
         startActivity(Intent(this, LectureReaderActivity::class.java).putExtra(LectureReaderActivity.EXTRA_SESSION_ID, sessionId))
+    }
+
+    private fun exportOriginalAudio(session: LectureSession, destinationTreeUri: Uri) {
+        lifecycleScope.launch {
+            runCatching {
+                AudioExporter.export(
+                    context = applicationContext,
+                    destinationTreeUri = destinationTreeUri,
+                    sourcePaths = session.segmentFiles,
+                    lectureTitle = session.title.ifBlank { session.course.ifBlank { "Лекция" } },
+                )
+            }.onSuccess { count ->
+                showMessage("Сохранено исходных аудиофайлов: $count")
+            }.onFailure { error ->
+                showMessage("Не удалось сохранить аудио: ${error.message.orEmpty().take(160)}")
+            }
+        }
     }
 
     private fun confirmDelete(session: LectureSession) {
