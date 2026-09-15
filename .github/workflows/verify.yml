@@ -2,6 +2,8 @@ name: Verify LectureVault
 
 on:
   push:
+    tags:
+      - 'v*'
   pull_request:
   workflow_dispatch:
 
@@ -25,6 +27,13 @@ jobs:
         run: ./gradlew :app:testDebugUnitTest :app:assembleDebug --console=plain
       - name: Run desktop tests and package portable build
         run: ./gradlew :desktop:test :desktop:portableZip --console=plain
+      - name: Upload Android release APK
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-release-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
 
   worker:
     name: Cloudflare Worker type-check
@@ -70,3 +79,32 @@ jobs:
       - name: Build Mac target without signing
         if: always()
         run: xcodebuild -project LectureVault.xcodeproj -scheme LectureVaultMac -sdk macosx CODE_SIGNING_ALLOWED=NO build
+
+  publish-android-prerelease:
+    name: Publish Android prerelease
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [android-and-desktop, worker, gateway-binary-smoke, apple-sources]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified Android APK
+        uses: actions/download-artifact@v4
+        with:
+          name: android-release-apk
+          path: release-apk
+      - name: Create or update GitHub prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          asset="./release-apk/app-debug.apk#LectureVault-Android-${TAG#v}-gateway.apk"
+          if gh release view "$TAG"; then
+            gh release upload "$TAG" "$asset" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG" "$asset" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "LectureVault ${TAG#v} — тестовая сборка" \
+              --notes "Автоматически собранный APK. Перед публикацией прошли Android, Windows, iPhone/macOS и проверки сервера." \
+              --prerelease
+          fi
