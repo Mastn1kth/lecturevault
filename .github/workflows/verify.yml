@@ -34,6 +34,13 @@ jobs:
           name: android-release-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Upload Windows portable archive
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release-archive
+          path: desktop/build/distributions/LectureVault-desktop-portable.zip
+          if-no-files-found: error
 
   worker:
     name: Cloudflare Worker type-check
@@ -78,10 +85,24 @@ jobs:
         run: xcodebuild -project LectureVault.xcodeproj -scheme LectureVault -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
       - name: Build Mac target without signing
         if: always()
-        run: xcodebuild -project LectureVault.xcodeproj -scheme LectureVaultMac -sdk macosx CODE_SIGNING_ALLOWED=NO build
+        run: xcodebuild -project LectureVault.xcodeproj -scheme LectureVaultMac -sdk macosx -derivedDataPath release-derived-data CODE_SIGNING_ALLOWED=NO build
+      - name: Package unsigned macOS app
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          app="$(find release-derived-data/Build/Products/Debug -maxdepth 1 -name '*.app' -type d -print -quit)"
+          test -n "$app"
+          mkdir -p release-macos
+          ditto -c -k --sequesterRsrc --keepParent "$app" release-macos/LectureVault-macOS-unsigned.zip
+      - name: Upload macOS release archive
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release-archive
+          path: ios/release-macos/LectureVault-macOS-unsigned.zip
+          if-no-files-found: error
 
-  publish-android-prerelease:
-    name: Publish Android prerelease
+  publish-prerelease:
+    name: Publish platform prerelease
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [android-and-desktop, worker, gateway-binary-smoke, apple-sources]
     runs-on: ubuntu-latest
@@ -93,19 +114,34 @@ jobs:
         with:
           name: android-release-apk
           path: release-apk
+      - name: Download verified macOS archive
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-release-archive
+          path: release-macos
+      - name: Download verified Windows archive
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release-archive
+          path: release-windows
       - name: Create or update GitHub prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          asset="./release-apk/app-debug.apk#LectureVault-Android-${TAG#v}-gateway.apk"
+          android_asset="./release-apk/LectureVault-Android-${TAG#v}-gateway.apk"
+          macos_asset="./release-macos/LectureVault-macOS-${TAG#v}-unsigned.zip"
+          windows_asset="./release-windows/LectureVault-Windows-${TAG#v}-portable.zip"
+          cp ./release-apk/app-debug.apk "$android_asset"
+          cp ./release-macos/LectureVault-macOS-unsigned.zip "$macos_asset"
+          cp ./release-windows/LectureVault-desktop-portable.zip "$windows_asset"
           if gh release view "$TAG"; then
-            gh release upload "$TAG" "$asset" --clobber --repo "$GITHUB_REPOSITORY"
+            gh release upload "$TAG" "$android_asset" "$macos_asset" "$windows_asset" --clobber --repo "$GITHUB_REPOSITORY"
           else
             gh release create "$TAG" \
               --repo "$GITHUB_REPOSITORY" \
               --title "LectureVault ${TAG#v} — тестовая сборка" \
-              --notes "Автоматически собранный APK. Перед публикацией прошли Android, Windows, iPhone/macOS и проверки сервера." \
+              --notes "Автоматически собранные версии для Android, Windows и macOS. Перед публикацией прошли проверки Android, Windows, iPhone/macOS и сервера." \
               --prerelease
-            gh release upload "$TAG" "$asset" --repo "$GITHUB_REPOSITORY"
+            gh release upload "$TAG" "$android_asset" "$macos_asset" "$windows_asset" --repo "$GITHUB_REPOSITORY"
           fi
