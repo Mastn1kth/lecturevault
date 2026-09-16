@@ -75,6 +75,8 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
     private var pendingFiles = emptyList<File>()
     private var lastNote: File? = null
     private var historyTask: SwingWorker<List<LectureItem>, Unit>? = null
+    private var processingTask: SwingWorker<File, String>? = null
+    private var trayIcon: TrayIcon? = null
     private val timer = Timer(250) {
         view.setElapsed((System.currentTimeMillis() - recordedAt) / 1000)
     }
@@ -106,7 +108,8 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         addWindowListener(object : WindowAdapter() {
             override fun windowClosing(event: WindowEvent) {
                 if (busy) {
-                    view.showNotice("Дождитесь завершения обработки перед закрытием.", true)
+                    if (moveToTray()) return
+                    view.showNotice("В этом окружении нет системного трея — дождитесь завершения обработки перед закрытием.", true)
                     view.navigate(Page.RECORD)
                     return
                 }
@@ -118,10 +121,66 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
                     recorder?.stop()
                     timer.stop()
                 }
+                processingTask?.cancel(true)
                 historyTask?.cancel(true)
                 dispose()
             }
+            override fun windowClosed(event: WindowEvent) {
+                trayIcon?.let { SystemTray.getSystemTray().remove(it) }
+                trayIcon = null
+            }
         })
+    }
+
+    private fun moveToTray(): Boolean {
+        if (!SystemTray.isSupported()) return false
+        val icon = trayIcon ?: createTrayIcon() ?: return false
+        isVisible = false
+        icon.displayMessage(
+            "LectureVault",
+            "Обработка продолжается в фоне. Я сообщу, когда конспект будет готов.",
+            TrayIcon.MessageType.INFO,
+        )
+        return true
+    }
+
+    private fun createTrayIcon(): TrayIcon? = runCatching {
+        val menu = PopupMenu()
+        menu.add(MenuItem("Показать LectureVault").apply { addActionListener { showWindow() } })
+        menu.addSeparator()
+        menu.add(MenuItem("Выйти").apply { addActionListener { exitFromTray() } })
+        TrayIcon(iconImage, "LectureVault", menu).apply {
+            isImageAutoSize = true
+            addActionListener { showWindow() }
+            SystemTray.getSystemTray().add(this)
+        }
+    }.getOrNull()?.also { trayIcon = it }
+
+    private fun showWindow() {
+        isVisible = true
+        extendedState = Frame.NORMAL
+        toFront()
+        requestFocus()
+    }
+
+    private fun exitFromTray() {
+        if (busy) {
+            val answer = JOptionPane.showConfirmDialog(
+                this,
+                "Прервать обработку и выйти? Исходное аудио останется сохранённым, его можно будет обработать после следующего запуска.",
+                "Обработка ещё идёт",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE,
+            )
+            if (answer != JOptionPane.YES_OPTION) return
+            processingTask?.cancel(true)
+            historyTask?.cancel(true)
+        }
+        dispose()
+    }
+
+    private fun notifyTray(title: String, message: String, type: TrayIcon.MessageType) {
+        trayIcon?.displayMessage(title, message.take(180), type)
     }
 
     private fun loadSettingsView() {
@@ -214,7 +273,7 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         busy = true
         view.navigate(Page.RECORD)
         view.setState(RecordingState.PROCESSING, "Подготавливаем аудио")
-        object : SwingWorker<File, String>() {
+        val task = object : SwingWorker<File, String>() {
             override fun doInBackground(): File {
                 val transcripts = pendingFiles.mapIndexed { index, file ->
                     publish("Расшифровка · часть ${index + 1} из ${pendingFiles.size}")
@@ -230,20 +289,25 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
             override fun process(chunks: MutableList<String>) { view.setProgress(chunks.last()) }
             override fun done() {
                 busy = false
+                processingTask = null
                 runCatching { get() }.onSuccess {
                     lastNote = it
                     pendingFiles = emptyList()
                     settings.clearFailedAudio()
                     view.setState(RecordingState.SUCCESS, "Конспект сохранён в Obsidian")
+                    notifyTray("Лекция готова", it.nameWithoutExtension, TrayIcon.MessageType.INFO)
                     view.setElapsed(0)
                     refreshHistory()
                 }.onFailure {
                     val detail = (it.cause?.message ?: it.message).orEmpty().take(220)
                     settings.rememberFailedAudio(pendingFiles)
                     view.setState(RecordingState.ERROR, "Не удалось обработать аудио. $detail", canRetry = true)
+                    notifyTray("Лекцию не удалось обработать", "Исходное аудио сохранено — можно повторить обработку после открытия приложения.", TrayIcon.MessageType.ERROR)
                 }
             }
-        }.execute()
+        }
+        processingTask = task
+        task.execute()
     }
 
     private fun archiveOriginalAudio(files: List<File>): List<File> {

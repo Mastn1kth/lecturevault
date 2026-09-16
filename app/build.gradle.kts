@@ -25,8 +25,8 @@ android {
         applicationId = "app.lecturevault"
         minSdk = 26
         targetSdk = 36
-        versionCode = 19
-        versionName = "1.5.15"
+        versionCode = 20
+        versionName = "1.5.16"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GATEWAY_URL", "\"$gatewayUrl\"")
