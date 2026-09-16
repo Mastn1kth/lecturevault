@@ -10,6 +10,7 @@ import androidx.lifecycle.lifecycleScope
 import app.lecturevault.BuildConfig
 import app.lecturevault.data.AppSettings
 import app.lecturevault.databinding.ActivitySettingsBinding
+import app.lecturevault.network.GatewayClient
 import app.lecturevault.obsidian.VaultWriter
 import app.lecturevault.offline.OfflineModelManager
 import app.lecturevault.util.applyScreenInsets
@@ -65,6 +66,7 @@ class SettingsActivity : AppCompatActivity() {
         binding.consentCheck.isChecked = settings.consent
         binding.selectVaultButton.setOnClickListener { folderPicker.launch(null) }
         binding.downloadModelButton.setOnClickListener { downloadModel() }
+        binding.healthButton.setOnClickListener { checkGateway() }
         binding.privacyButton.setOnClickListener { showPrivacyExplanation() }
         binding.saveButton.setOnClickListener { save() }
         renderModelStatus()
@@ -91,6 +93,23 @@ class SettingsActivity : AppCompatActivity() {
                 showMessage("Русская модель готова")
             }.onFailure { showMessage(it.message ?: "Не удалось скачать модель") }
             binding.downloadModelButton.isEnabled = !modelManager.isInstalled()
+        }
+    }
+
+    private fun checkGateway() {
+        binding.healthButton.isEnabled = false
+        binding.cloudStatus.text = "Проверяем сервер ИИ…"
+        lifecycleScope.launch {
+            runCatching { GatewayClient().checkHealth() }
+                .onSuccess { health ->
+                    binding.cloudStatus.text = if (health.speechReady && health.textProviders.isNotEmpty()) {
+                        "Сервер ИИ готов · речь + ${health.textProviders.joinToString(", ")}"
+                    } else {
+                        "Сервер доступен, но ИИ настроен не полностью"
+                    }
+                }
+                .onFailure { binding.cloudStatus.text = "Сервер недоступен: ${it.message.orEmpty().take(140)}" }
+            binding.healthButton.isEnabled = true
         }
     }
 

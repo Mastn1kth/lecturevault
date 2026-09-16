@@ -13,6 +13,17 @@ enum APIClient {
         return value?.isEmpty == false ? value! : defaultGateway
     }()
     static var privacyURL: URL? { URL(string: "\(gateway)/privacy") }
+
+    static func checkHealth() async throws -> String {
+        let (data, response) = try await URLSession.shared.data(from: URL(string: "\(gateway)/health")!)
+        try validate(response, data: data, service: "Сервер ИИ")
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] ?? [:]
+        guard json["ok"] as? Bool == true else { throw AppError.message("Сервер ИИ ответил некорректно") }
+        let speech = json["speech"] as? Bool ?? false
+        let providers = (json["textProviders"] as? [String] ?? []).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return speech && !providers.isEmpty ? "Сервер ИИ готов · речь + \(providers.joined(separator: ", "))" : "Сервер доступен, но ИИ настроен не полностью"
+    }
+
     static func transcribe(_ file: URL) async throws -> Transcript {
         let data = try Data(contentsOf: file)
         guard data.count <= 24 * 1024 * 1024 else { throw AppError.message("Часть аудио больше 24 МБ") }

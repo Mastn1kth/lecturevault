@@ -168,6 +168,20 @@ internal object CloudApi {
         .connectTimeout(20, TimeUnit.SECONDS).readTimeout(10, TimeUnit.MINUTES)
         .writeTimeout(10, TimeUnit.MINUTES).followRedirects(false).build()
 
+    data class Health(val speechReady: Boolean, val textProviders: List<String>)
+
+    fun checkHealth(): Health {
+        val request = Request.Builder().url("${GatewayConfig.baseUrl}/health").get().build()
+        client.newCall(request).execute().use { response ->
+            val raw = response.body?.string().orEmpty()
+            check(response.isSuccessful) { "Сервер ИИ HTTP ${response.code}: ${safeError(raw)}" }
+            val json = JSONObject(raw)
+            check(json.optBoolean("ok")) { "Сервер ИИ ответил некорректно" }
+            val providers = json.optJSONArray("textProviders") ?: JSONArray()
+            return Health(json.optBoolean("speech"), List(providers.length()) { providers.optString(it).trim() }.filter(String::isNotBlank))
+        }
+    }
+
     fun transcribe(file: File): Pair<String, String> {
         require(file.isFile && file.length() in 1..(24L * 1024 * 1024)) { "Файл пустой или больше 24 МБ: ${file.name}" }
         val body = file.asRequestBody("application/octet-stream".toMediaType())

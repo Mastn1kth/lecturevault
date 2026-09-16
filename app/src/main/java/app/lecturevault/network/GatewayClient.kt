@@ -15,6 +15,18 @@ import java.io.IOException
 class GatewayClient(private val baseUrl: String = BASE) {
     private val http = secureHttpClient(20, 600, 600, 900)
 
+    data class Health(val speechReady: Boolean, val textProviders: List<String>)
+
+    suspend fun checkHealth(): Health = withContext(Dispatchers.IO) {
+        val raw = execute(Request.Builder().url("$baseUrl/health").get().build())
+        val root = JSONObject(raw)
+        check(root.optBoolean("ok")) { "Сервер ИИ ответил некорректно" }
+        val providers = root.optJSONArray("textProviders")
+            ?.let { array -> List(array.length()) { index -> array.optString(index).trim() }.filter(String::isNotBlank) }
+            .orEmpty()
+        Health(root.optBoolean("speech"), providers)
+    }
+
     suspend fun transcribe(file: File): TranscriptResult = withContext(Dispatchers.IO) {
         require(file.isFile && file.length() in 1..MAX_AUDIO_BYTES) { "Аудиофайл пуст или больше 24 МБ" }
         val audio = file.asRequestBody("application/octet-stream".toMediaType())

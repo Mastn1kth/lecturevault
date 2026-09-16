@@ -94,6 +94,7 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         view.onNavigate = { page -> if (page == Page.LIBRARY) refreshHistory() }
         view.onSaveSettings = ::saveSettings
         view.onDeleteKeys = ::deleteKeys
+        view.onCheckGateway = ::checkGateway
         view.onOpenPrivacy = ::openPrivacy
         view.onChooseVault = ::chooseVault
         view.onCreateVault = ::createVault
@@ -419,6 +420,23 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
             .onFailure { view.settingsNotice("Не удалось отключить облачную обработку.", true) }
     }
 
+    private fun checkGateway() {
+        if (busy) return
+        view.settingsNotice("Проверяем сервер ИИ…")
+        object : SwingWorker<String, Unit>() {
+            override fun doInBackground(): String {
+                val health = CloudApi.checkHealth()
+                return if (health.speechReady && health.textProviders.isNotEmpty()) {
+                    "Сервер ИИ готов · речь + ${health.textProviders.joinToString(", ")}"
+                } else "Сервер доступен, но ИИ настроен не полностью"
+            }
+            override fun done() {
+                runCatching { get() }.onSuccess { view.settingsNotice(it) }
+                    .onFailure { view.settingsNotice("Сервер недоступен: ${(it.cause?.message ?: it.message).orEmpty().take(180)}", true) }
+            }
+        }.execute()
+    }
+
     private fun refreshHistory() {
         historyTask?.cancel(true)
         val vault = settings.vault
@@ -476,6 +494,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     var onNavigate: (Page) -> Unit = {}
     var onChooseVault: () -> Unit = {}
     var onCreateVault: () -> Unit = {}
+    var onCheckGateway: () -> Unit = {}
     var onSaveSettings: () -> Unit = {}
     var onDeleteKeys: () -> Unit = {}
     var onOpenPrivacy: () -> Unit = {}
@@ -514,6 +533,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     private val saveButton = ActionButton("Сохранить настройки", "check", true).apply { addActionListener { onSaveSettings() } }
     private val deleteKeysButton = ActionButton("Отключить облачный ИИ", "delete").apply { addActionListener { onDeleteKeys() } }
     private val privacyButton = ActionButton("Политика данных", "arrow").apply { addActionListener { onOpenPrivacy() } }
+    private val healthButton = ActionButton("Проверить подключение к ИИ", "refresh").apply { addActionListener { onCheckGateway() } }
     private val chooseVaultButton = ActionButton("Выбрать папку", "folder").apply { addActionListener { onChooseVault() } }
     private val createVaultButton = ActionButton("Создать новое хранилище", "folder").apply { addActionListener { onCreateVault() } }
     private val navButtons = linkedMapOf<Page, ActionButton>()
@@ -670,6 +690,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
         }
         val ai = section("Обработка с ИИ", "Ключи находятся на защищённом сервере и не сохраняются на компьютере.")
         ai.add(consentBox)
+        ai.add(Box.createVerticalStrut(10)); ai.add(healthButton)
         ai.add(Box.createVerticalStrut(10)); ai.add(privacyButton)
         ai.add(Box.createVerticalStrut(10)); ai.add(deleteKeysButton)
         add(ai); add(Box.createVerticalStrut(18))
@@ -717,7 +738,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
         saveButton.isEnabled = !locked
         chooseVaultButton.isEnabled = !locked
         createVaultButton.isEnabled = !locked
-        listOf(consentBox, vaultField, notesField).forEach { it.isEnabled = !locked }
+        listOf(consentBox, vaultField, notesField, healthButton).forEach { it.isEnabled = !locked }
         recordButton.isEnabled = state != RecordingState.PROCESSING
         recordButton.recording = state == RecordingState.RECORDING
         recordButton.toolTipText = if (recordButton.recording) "Остановить и создать конспект" else "Начать запись"

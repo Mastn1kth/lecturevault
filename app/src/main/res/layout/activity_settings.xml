@@ -82,6 +82,14 @@
                         android:textColor="@color/text_primary"
                         android:textSize="13sp" />
 
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/healthButton"
+                        style="@style/Widget.LV.Button"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Проверить подключение к ИИ" />
+
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/privacyButton"

@@ -532,6 +532,8 @@ private struct SettingsView: View {
     @Environment(\.openURL) private var openURL
     @State private var consent = false
     @State private var showingPrivacy = false
+    @State private var gatewayStatus: String?
+    @State private var isCheckingGateway = false
     let showVaultPicker: () -> Void
 
     var body: some View {
@@ -540,6 +542,21 @@ private struct SettingsView: View {
                 VStack(spacing: 14) {
                     settingsCard("Облачный режим", subtitle: model.cloudConsent ? "Сервер ИИ подключён" : "Требуется подтверждение") {
                         Toggle("Разрешаю отправку аудио и текста на защищённый сервер ИИ", isOn: $consent).tint(LV.accent)
+                        Button {
+                            isCheckingGateway = true
+                            gatewayStatus = "Проверяем сервер ИИ…"
+                            Task {
+                                do { gatewayStatus = try await APIClient.checkHealth() }
+                                catch { gatewayStatus = "Сервер недоступен: \(error.localizedDescription)" }
+                                isCheckingGateway = false
+                            }
+                        } label: {
+                            Label(isCheckingGateway ? "Проверяем…" : "Проверить подключение к ИИ", systemImage: "arrow.clockwise")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .disabled(isCheckingGateway)
+                        .frame(height: 46).background(LV.elevated, in: RoundedRectangle(cornerRadius: 15))
+                        if let gatewayStatus { Text(gatewayStatus).font(.caption).foregroundStyle(gatewayStatus.hasPrefix("Сервер ИИ готов") ? LV.success : LV.muted) }
                         HStack {
                             Button("Отключить облачный ИИ") { model.disableCloudProcessing(); consent = false }.foregroundStyle(LV.danger)
                             Spacer()
