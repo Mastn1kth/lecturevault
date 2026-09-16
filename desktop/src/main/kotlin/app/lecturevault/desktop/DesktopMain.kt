@@ -31,6 +31,22 @@ internal object GatewayConfig {
     val privacyUrl: String get() = "$baseUrl/privacy"
 }
 
+/** Creates a self-contained Obsidian vault without touching an existing one. */
+internal fun createLectureVault(base: File): File {
+    check(base.exists() || base.mkdirs()) { "Не удалось создать папку Obsidian" }
+    check(base.isDirectory) { "Путь для Obsidian не является папкой" }
+    var number = 1
+    var vault = File(base, "LectureVault")
+    while (vault.exists()) {
+        number += 1
+        vault = File(base, "LectureVault ($number)")
+    }
+    check(vault.mkdir()) { "Не удалось создать папку хранилища" }
+    check(File(vault, ".obsidian").mkdir()) { "Не удалось подготовить vault для Obsidian" }
+    check(File(vault, "Лекции").mkdir()) { "Не удалось создать папку лекций" }
+    return vault
+}
+
 fun main(args: Array<String>) {
     System.setProperty("flatlaf.useWindowDecorations", "true")
     FlatDarkLaf.setup()

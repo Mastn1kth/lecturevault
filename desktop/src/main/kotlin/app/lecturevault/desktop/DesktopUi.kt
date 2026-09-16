@@ -325,13 +325,7 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
 
     private fun createVault() {
         runCatching {
-            val base = File(System.getProperty("user.home"), "Documents/Obsidian").apply { mkdirs() }
-            var number = 1
-            var vault = File(base, "LectureVault")
-            while (vault.exists()) { number += 1; vault = File(base, "LectureVault ($number)") }
-            check(vault.mkdirs()) { "Не удалось создать папку хранилища" }
-            check(File(vault, ".obsidian").mkdirs()) { "Не удалось подготовить vault для Obsidian" }
-            check(File(vault, "Лекции").mkdirs()) { "Не удалось создать папку лекций" }
+            val vault = createLectureVault(File(System.getProperty("user.home"), "Documents/Obsidian"))
             view.vaultField.text = vault.absolutePath
             view.settingsNotice("Хранилище создано. Подтвердите облачный режим и сохраните настройки.")
         }.onFailure { view.settingsNotice(it.message ?: "Не удалось создать хранилище.", true) }
