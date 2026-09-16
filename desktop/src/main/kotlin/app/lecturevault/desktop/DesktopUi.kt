@@ -94,6 +94,7 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         view.onDeleteKeys = ::deleteKeys
         view.onOpenPrivacy = ::openPrivacy
         view.onChooseVault = ::chooseVault
+        view.onCreateVault = ::createVault
         view.onOpenNote = ::openNote
         view.onDeleteNote = ::deleteNote
         view.onRetry = { process(pendingFiles, archiveOriginal = false) }
@@ -322,6 +323,20 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
         if (picker.showOpenDialog(this) == SystemFileChooser.APPROVE_OPTION) view.vaultField.text = picker.selectedFile.absolutePath
     }
 
+    private fun createVault() {
+        runCatching {
+            val base = File(System.getProperty("user.home"), "Documents/Obsidian").apply { mkdirs() }
+            var number = 1
+            var vault = File(base, "LectureVault")
+            while (vault.exists()) { number += 1; vault = File(base, "LectureVault ($number)") }
+            check(vault.mkdirs()) { "Не удалось создать папку хранилища" }
+            check(File(vault, ".obsidian").mkdirs()) { "Не удалось подготовить vault для Obsidian" }
+            check(File(vault, "Лекции").mkdirs()) { "Не удалось создать папку лекций" }
+            view.vaultField.text = vault.absolutePath
+            view.settingsNotice("Хранилище создано. Подтвердите облачный режим и сохраните настройки.")
+        }.onFailure { view.settingsNotice(it.message ?: "Не удалось создать хранилище.", true) }
+    }
+
     private fun saveSettings() {
         if (busy || recorder != null) return
         runCatching {
@@ -402,6 +417,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     var onDrop: (List<File>) -> Unit = {}
     var onNavigate: (Page) -> Unit = {}
     var onChooseVault: () -> Unit = {}
+    var onCreateVault: () -> Unit = {}
     var onSaveSettings: () -> Unit = {}
     var onDeleteKeys: () -> Unit = {}
     var onOpenPrivacy: () -> Unit = {}
@@ -441,6 +457,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
     private val deleteKeysButton = ActionButton("Отключить облачный ИИ", "delete").apply { addActionListener { onDeleteKeys() } }
     private val privacyButton = ActionButton("Политика данных", "arrow").apply { addActionListener { onOpenPrivacy() } }
     private val chooseVaultButton = ActionButton("Выбрать папку", "folder").apply { addActionListener { onChooseVault() } }
+    private val createVaultButton = ActionButton("Создать новое хранилище", "folder").apply { addActionListener { onCreateVault() } }
     private val navButtons = linkedMapOf<Page, ActionButton>()
     private var lectures = emptyList<LectureItem>()
     private var currentState = RecordingState.READY
@@ -598,9 +615,9 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
         ai.add(Box.createVerticalStrut(10)); ai.add(privacyButton)
         ai.add(Box.createVerticalStrut(10)); ai.add(deleteKeysButton)
         add(ai); add(Box.createVerticalStrut(18))
-        val storage = section("Хранилище Obsidian", "Конспекты сохраняются в выбранную папку на компьютере.")
+        val storage = section("Хранилище Obsidian", "Создайте чистое хранилище в «Документах» или подключите существующее. LectureVault подготовит структуру папок.")
         storage.add(label("Корневая папка хранилища", 13, true)); storage.add(Box.createVerticalStrut(8))
-        storage.add(vaultField); storage.add(Box.createVerticalStrut(10)); storage.add(chooseVaultButton)
+        storage.add(vaultField); storage.add(Box.createVerticalStrut(10)); storage.add(createVaultButton); storage.add(Box.createVerticalStrut(10)); storage.add(chooseVaultButton)
         storage.add(Box.createVerticalStrut(18)); storage.add(label("Папка конспектов", 13, true)); storage.add(Box.createVerticalStrut(8)); storage.add(notesField)
         add(storage); add(Box.createVerticalStrut(20)); add(saveButton)
     }
@@ -641,6 +658,7 @@ internal class DesktopView(initialSubject: String = "") : JPanel(BorderLayout())
         importButton.isEnabled = !locked
         saveButton.isEnabled = !locked
         chooseVaultButton.isEnabled = !locked
+        createVaultButton.isEnabled = !locked
         listOf(consentBox, vaultField, notesField).forEach { it.isEnabled = !locked }
         recordButton.isEnabled = state != RecordingState.PROCESSING
         recordButton.recording = state == RecordingState.RECORDING

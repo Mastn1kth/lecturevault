@@ -115,13 +115,17 @@ final class AppModel: ObservableObject {
 
     func selectVault(_ url: URL) {
         do {
-            guard FileManager.default.fileExists(atPath: url.appendingPathComponent(".obsidian", isDirectory: true).path) else {
-                throw AppError.message("Выберите папку самого vault Obsidian")
-            }
+            guard url.startAccessingSecurityScopedResource() else { throw AppError.message("Нет доступа к выбранной папке") }
+            defer { url.stopAccessingSecurityScopedResource() }
+            let obsidian = url.appendingPathComponent(".obsidian", isDirectory: true)
+            let wasNew = !FileManager.default.fileExists(atPath: obsidian.path)
+            try FileManager.default.createDirectory(at: obsidian, withIntermediateDirectories: true)
+            let lectureFolder = url.appendingPathComponent("Лекции", isDirectory: true)
+            try FileManager.default.createDirectory(at: lectureFolder, withIntermediateDirectories: true)
             let bookmark = try url.bookmarkData(options: bookmarkCreationOptions, includingResourceValuesForKeys: nil, relativeTo: nil)
             UserDefaults.standard.set(bookmark, forKey: "vaultBookmark")
-            objectWillChange.send(); status = "Vault выбран: \(url.lastPathComponent)"; refreshHistory()
-        } catch { status = "Не удалось сохранить доступ к папке" }
+            objectWillChange.send(); status = wasNew ? "Хранилище создано: \(url.lastPathComponent)" : "Vault выбран: \(url.lastPathComponent)"; refreshHistory()
+        } catch { status = "Не удалось подключить папку: \(error.localizedDescription)" }
     }
 
     func saveSettings(consent: Bool) {

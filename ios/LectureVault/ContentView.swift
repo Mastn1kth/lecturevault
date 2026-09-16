@@ -547,8 +547,10 @@ private struct SettingsView: View {
                         }.font(.caption.weight(.semibold))
                     }
                     settingsCard("Obsidian", subtitle: model.vaultName == "Не выбран" ? "Vault не выбран" : "Подключено: \(model.vaultName)") {
-                        Button("Выбрать папку vault", action: showVaultPicker)
+                        Button("Создать / подключить vault", action: showVaultPicker)
                             .frame(maxWidth: .infinity).frame(height: 50).background(LV.elevated, in: RoundedRectangle(cornerRadius: 15))
+                        Text("Выберите пустую папку — LectureVault подготовит её для Obsidian и создаст папку лекций.")
+                            .font(.caption).foregroundStyle(LV.muted)
                         HStack {
                             Image(systemName: "folder.fill").foregroundStyle(LV.accent)
                             TextField("Папка для лекций", text: $model.notesFolder)

@@ -25,18 +25,27 @@ class SettingsActivity : AppCompatActivity() {
     private val folderPicker = registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri == null) return@registerForActivityResult
         runCatching {
-            val root = DocumentFile.fromTreeUri(this, uri)
-            check(root?.findFile(OBSIDIAN_CONFIG_FOLDER)?.isDirectory == true) {
-                "Выберите папку самого vault, например «Учеба»"
-            }
+            val root = requireNotNull(DocumentFile.fromTreeUri(this, uri)) { "Выбранная папка недоступна" }
+            check(root.exists() && root.isDirectory && root.canWrite()) { "Нет доступа к выбранной папке" }
             contentResolver.takePersistableUriPermission(
                 uri,
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
             )
+            val wasNew = root.findFile(OBSIDIAN_CONFIG_FOLDER) == null
+            check(root.findFile(OBSIDIAN_CONFIG_FOLDER)?.let { it.isDirectory } != false) {
+                "В выбранной папке уже есть файл «.obsidian»"
+            }
+            if (wasNew) {
+                check(root.createDirectory(OBSIDIAN_CONFIG_FOLDER) != null) { "Не удалось создать служебную папку Obsidian" }
+            }
+            val notesFolder = binding.notesFolderInput.text?.toString().orEmpty().ifBlank { "Лекции" }
+            binding.notesFolderInput.setText(notesFolder)
+            ensureNotesFolder(root, notesFolder)
             settings.vaultTreeUri = uri.toString()
+            wasNew
         }.onSuccess {
             renderVaultStatus()
-            showMessage("Obsidian подключён")
+            showMessage(if (it) "Хранилище Obsidian создано и подключено" else "Obsidian подключён")
         }.onFailure { showMessage(it.message ?: "Нет доступа к папке") }
     }
 
@@ -129,6 +138,15 @@ class SettingsActivity : AppCompatActivity() {
     private fun renderVaultStatus() {
         val root = settings.vaultTreeUri?.let(Uri::parse)?.let { DocumentFile.fromTreeUri(this, it) }
         binding.vaultStatus.text = if (isVaultReady(root)) "Подключено: ${root?.name}" else "Vault не выбран"
+    }
+
+    private fun ensureNotesFolder(root: DocumentFile, rawPath: String) {
+        var folder = root
+        for (segment in VaultWriter(this).validateFolderPath(rawPath.ifBlank { "Лекции" })) {
+            folder = folder.findFile(segment)?.also {
+                check(it.isDirectory) { "В пути лекций «$segment» уже есть файл" }
+            } ?: checkNotNull(folder.createDirectory(segment)) { "Не удалось создать папку «$segment»" }
+        }
     }
 
     private fun isVaultReady(
