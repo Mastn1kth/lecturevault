@@ -23,6 +23,14 @@ import kotlin.concurrent.thread
 
 import javax.swing.SwingUtilities
 
+internal object GatewayConfig {
+    private const val DEFAULT = "https://api.gory-staff.ru"
+    val baseUrl: String = (System.getProperty("lecturevault.gateway")
+        ?: System.getenv("LECTUREVAULT_GATEWAY")
+        ?: DEFAULT).trimEnd('/')
+    val privacyUrl: String get() = "$baseUrl/privacy"
+}
+
 fun main(args: Array<String>) {
     System.setProperty("flatlaf.useWindowDecorations", "true")
     FlatDarkLaf.setup()
@@ -147,7 +155,7 @@ internal object CloudApi {
     fun transcribe(file: File): Pair<String, String> {
         require(file.isFile && file.length() in 1..(24L * 1024 * 1024)) { "Файл пустой или больше 24 МБ: ${file.name}" }
         val body = file.asRequestBody("application/octet-stream".toMediaType())
-        val request = Request.Builder().url("$GATEWAY/v1/transcribe")
+        val request = Request.Builder().url("${GatewayConfig.baseUrl}/v1/transcribe")
             .header("X-Audio-Filename", file.name).post(body).build()
         client.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
@@ -168,7 +176,7 @@ internal object CloudApi {
 
     fun summarize(transcript: String, course: String): String {
         val payload = JSONObject().put("task", "summary").put("course", course).put("transcript", transcript)
-        val request = Request.Builder().url("$GATEWAY/v1/generate")
+        val request = Request.Builder().url("${GatewayConfig.baseUrl}/v1/generate")
             .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
         client.newCall(request).execute().use { response ->
             val raw = response.body?.string().orEmpty()
@@ -179,7 +187,6 @@ internal object CloudApi {
 
     private fun safeError(raw: String): String = runCatching { JSONObject(raw).optJSONObject("error")?.optString("message") }.getOrNull().orEmpty().replace(Regex("[\r\n\t]+"), " ").take(180)
     private fun clock(seconds: Double): String { val s = seconds.toLong().coerceAtLeast(0); return "%02d:%02d:%02d".format(s / 3600, s % 3600 / 60, s % 60) }
-    private const val GATEWAY = "https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev"
 }
 
 internal object NoteWriter {

@@ -9,6 +9,10 @@ plugins {
 val releaseSigningProperties = Properties()
 val releaseSigningFile = rootProject.file("release-signing.properties")
 val hasReleaseSigning = releaseSigningFile.isFile
+val gatewayUrl = providers.gradleProperty("lectureVaultGateway")
+    .orElse("https://api.gory-staff.ru")
+    .get()
+    .trimEnd('/')
 if (hasReleaseSigning) {
     releaseSigningFile.inputStream().use(releaseSigningProperties::load)
 }
@@ -21,10 +25,11 @@ android {
         applicationId = "app.lecturevault"
         minSdk = 26
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.5.11"
+        versionCode = 17
+        versionName = "1.5.13"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "GATEWAY_URL", "\"$gatewayUrl\"")
     }
 
     signingConfigs {

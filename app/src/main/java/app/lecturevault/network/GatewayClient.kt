@@ -1,5 +1,6 @@
 package app.lecturevault.network
 
+import app.lecturevault.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -63,5 +64,5 @@ class GatewayClient(private val baseUrl: String = BASE) {
     } catch (error: ApiException) { throw error } catch (error: IOException) { throw ioFailure("Сервер ИИ", error) }
 
     private fun clock(seconds: Double): String { val s = seconds.toLong().coerceAtLeast(0); return "%02d:%02d:%02d".format(s / 3600, s % 3600 / 60, s % 60) }
-    companion object { private const val BASE = "https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev"; private const val MAX_AUDIO_BYTES = 24L * 1024 * 1024 }
+    companion object { private val BASE = BuildConfig.GATEWAY_URL.trimEnd('/'); private const val MAX_AUDIO_BYTES = 24L * 1024 * 1024 }
 }

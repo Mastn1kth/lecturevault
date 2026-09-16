@@ -15,6 +15,7 @@ targets:
         CODE_SIGN_STYLE: Automatic
         INFOPLIST_FILE: LectureVault/Info.plist
         CODE_SIGN_ENTITLEMENTS: LectureVault/LectureVault.entitlements
+        LECTUREVAULT_GATEWAY: https://api.gory-staff.ru
     scheme:
       testTargets: []
   LectureVaultMac:
@@ -29,3 +30,4 @@ targets:
         CODE_SIGN_STYLE: Automatic
         INFOPLIST_FILE: LectureVault/Info-mac.plist
         CODE_SIGN_ENTITLEMENTS: LectureVault/LectureVault.entitlements
+        LECTUREVAULT_GATEWAY: https://api.gory-staff.ru

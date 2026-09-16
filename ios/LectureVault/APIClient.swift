@@ -7,6 +7,12 @@ struct QuizQuestion: Identifiable, Hashable {
 }
 
 enum APIClient {
+    private static let defaultGateway = "https://api.gory-staff.ru"
+    static let gateway: String = {
+        let value = (Bundle.main.object(forInfoDictionaryKey: "LVGatewayURL") as? String)?.trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        return value?.isEmpty == false ? value! : defaultGateway
+    }()
+    static var privacyURL: URL? { URL(string: "\(gateway)/privacy") }
     static func transcribe(_ file: URL) async throws -> Transcript {
         let data = try Data(contentsOf: file)
         guard data.count <= 24 * 1024 * 1024 else { throw AppError.message("Часть аудио больше 24 МБ") }
@@ -58,8 +64,6 @@ enum APIClient {
         guard result.count == 10 else { throw AppError.message("Сервер ИИ вернул некорректный тест. Попробуйте ещё раз.") }
         return result
     }
-    private static let gateway = "https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev"
-
     private static func validate(_ response: URLResponse, data: Data, service: String) throws {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? 0

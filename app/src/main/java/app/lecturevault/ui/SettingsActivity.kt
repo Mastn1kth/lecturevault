@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.lifecycleScope
+import app.lecturevault.BuildConfig
 import app.lecturevault.data.AppSettings
 import app.lecturevault.databinding.ActivitySettingsBinding
 import app.lecturevault.obsidian.VaultWriter
@@ -120,7 +121,7 @@ class SettingsActivity : AppCompatActivity() {
             )
             .setNegativeButton("Понятно", null)
             .setPositiveButton("Открыть политику") { _, _ ->
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(PRIVACY_URL)))
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("${BuildConfig.GATEWAY_URL.trimEnd('/')}/privacy")))
             }
             .show()
     }
@@ -140,6 +141,5 @@ class SettingsActivity : AppCompatActivity() {
 
     companion object {
         private const val OBSIDIAN_CONFIG_FOLDER = ".obsidian"
-        private const val PRIVACY_URL = "https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev/privacy"
     }
 }

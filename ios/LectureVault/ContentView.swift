@@ -568,7 +568,7 @@ private struct SettingsView: View {
             .onAppear { consent = model.cloudConsent }
             .alert("Как используются данные", isPresented: $showingPrivacy) {
                 Button("Открыть политику") {
-                    if let url = URL(string: "https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev/privacy") {
+                    if let url = APIClient.privacyURL {
                         openURL(url)
                     }
                 }

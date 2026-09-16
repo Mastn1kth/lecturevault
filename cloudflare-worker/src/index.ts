@@ -6,6 +6,7 @@ export interface Env {
   TOGETHER_API_KEY?: string;
   TOGETHER_MODEL?: string;
   ALLOWED_ORIGINS?: string;
+  TRUSTED_PROXY_TOKEN?: string;
   RATE_LIMIT: DurableObjectNamespace;
 }
 
@@ -188,7 +189,9 @@ export class RateLimiter implements DurableObject {
 }
 
 async function enforceRateLimit(request: Request, env: Env, kind: "audio" | "text"): Promise<boolean> {
-  const address = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
+  const trustedProxy = env.TRUSTED_PROXY_TOKEN && request.headers.get("x-lecturevault-proxy-token") === env.TRUSTED_PROXY_TOKEN;
+  const address = trustedProxy && forwarded ? forwarded : request.headers.get("CF-Connecting-IP") ?? "unknown";
   const day = new Date().toISOString().slice(0, 10);
   const stub = env.RATE_LIMIT.get(env.RATE_LIMIT.idFromName(address));
   const response = await stub.fetch("https://limit/consume", { method: "POST", body: JSON.stringify({ bucket: `${day}:${kind}`, limit: kind === "audio" ? DAILY_AUDIO_LIMIT : DAILY_TEXT_LIMIT }) });

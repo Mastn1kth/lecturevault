@@ -1,0 +1,16 @@
+services:
+  lecturevault-gateway-proxy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    env_file: ${GATEWAY_ENV_FILE:-.env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -65,7 +65,6 @@ internal fun configureDesktopTheme() {
 internal enum class Page { RECORD, LIBRARY, SETTINGS }
 internal enum class RecordingState { READY, RECORDING, PROCESSING, SUCCESS, ERROR }
 internal data class LectureItem(val file: File, val title: String, val course: String, val date: String)
-private const val PRIVACY_URL = "https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev/privacy"
 
 internal class LectureVaultWindow : JFrame("LectureVault") {
     private val settings = DesktopSettings()
@@ -134,7 +133,7 @@ internal class LectureVaultWindow : JFrame("LectureVault") {
     private fun openPrivacy() {
         runCatching {
             check(Desktop.isDesktopSupported()) { "Браузер на этом компьютере недоступен" }
-            Desktop.getDesktop().browse(URI(PRIVACY_URL))
+            Desktop.getDesktop().browse(URI(GatewayConfig.privacyUrl))
         }.onFailure { view.settingsNotice(it.message ?: "Не удалось открыть политику", true) }
     }
 

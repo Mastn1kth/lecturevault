@@ -4,6 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-09-11",
   "observability": { "enabled": true },
+  "routes": [{ "pattern": "api.gory-staff.ru", "custom_domain": true, "zone_id": "e5b9269cba9e6843ccef63c124d6ce99" }],
   "durable_objects": { "bindings": [{ "name": "RATE_LIMIT", "class_name": "RateLimiter" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RateLimiter"] }]
 }
