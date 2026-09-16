@@ -1,6 +1,6 @@
 # Конфиденциальность LectureVault
 
-Публичная версия этой политики: <https://lecturevault-ai-gateway.aleksandrsimunin828.workers.dev/privacy>
+Публичная версия этой политики: <https://api.gory-staff.ru/privacy>
 
 LectureVault не создаёт пользовательские аккаунты, не показывает рекламу и не собирает аналитику приложения, контакты, местоположение или содержимое других файлов.
 
