@@ -119,6 +119,13 @@ final class AppModel: ObservableObject {
             defer { url.stopAccessingSecurityScopedResource() }
             let obsidian = url.appendingPathComponent(".obsidian", isDirectory: true)
             let wasNew = !FileManager.default.fileExists(atPath: obsidian.path)
+            if wasNew {
+                let visibleFiles = try FileManager.default.contentsOfDirectory(atPath: url.path)
+                    .filter { $0 != ".DS_Store" && $0 != "Thumbs.db" }
+                guard visibleFiles.isEmpty else {
+                    throw AppError.message("Выберите пустую папку для нового vault или уже готовое хранилище Obsidian")
+                }
+            }
             try FileManager.default.createDirectory(at: obsidian, withIntermediateDirectories: true)
             let lectureFolder = url.appendingPathComponent("Лекции", isDirectory: true)
             try FileManager.default.createDirectory(at: lectureFolder, withIntermediateDirectories: true)

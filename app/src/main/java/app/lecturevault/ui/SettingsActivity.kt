@@ -32,6 +32,11 @@ class SettingsActivity : AppCompatActivity() {
                 Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
             )
             val wasNew = root.findFile(OBSIDIAN_CONFIG_FOLDER) == null
+            if (wasNew) {
+                check(root.listFiles().isEmpty()) {
+                    "Выберите пустую папку для нового vault или уже готовое хранилище Obsidian"
+                }
+            }
             check(root.findFile(OBSIDIAN_CONFIG_FOLDER)?.let { it.isDirectory } != false) {
                 "В выбранной папке уже есть файл «.obsidian»"
             }
